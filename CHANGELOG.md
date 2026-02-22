@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.7.0] — 2026-02-22
+
+### Changed
+- Improved extension icon (`images/icon.png`) with a transparent background
+- Removed the redundant `@router /?` alias command (use `@router /help` instead)
+- Internal cleanup (fixed trailing comma in `package.json`)
+
 ## [1.6.0] — 2026-02-22
 
 ### Added
