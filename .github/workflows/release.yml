@@ -1,0 +1,39 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers when a tag starting with "v" (e.g., v1.7.0) is pushed
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to create a GitHub Release
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Package Extension
+        run: npx vsce package
+        
+      - name: Get VSIX filename
+        id: get_filename
+        run: |
+          VSIX_FILE=$(ls *.vsix)
+          echo "vsix=$VSIX_FILE" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.get_filename.outputs.vsix }}
+          generate_release_notes: true
