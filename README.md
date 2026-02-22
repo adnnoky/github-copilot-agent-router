@@ -99,7 +99,7 @@ Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
 ### Free Model Families
 
-`gpt-4o`, `gpt-4o-mini`, `gpt-4.1`
+`gpt-4o`, `gpt-4o-mini`
 
 All other available Copilot models (e.g. `o3`, `claude-3.5-sonnet`, `gemini-2.0`) are treated as **premium**.
 
