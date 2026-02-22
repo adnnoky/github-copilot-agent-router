@@ -147,7 +147,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 
 | Command | Description |
 |---|---|
-| \`@router /help\` or \`@router /?\` | Show this help page |
+| \`@router /help\` | Show this help page |
 | \`@router /explain <prompt>\` | Show routing score breakdown without sending to model |
 
 ## 🎮 Flags
@@ -240,8 +240,8 @@ async function routerHandler(
     return;
   }
 
-  // /help and /? are registered slash commands → request.command will be "help" or "?"
-  if (request.command === "help" || request.command === "?") {
+  // /help is a registered slash command → request.command will be "help"
+  if (request.command === "help") {
     await handleHelpCommand(stream);
     return;
   }
@@ -345,7 +345,7 @@ async function routerHandler(
 
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
-  output.appendLine("Agent Router v1.6.0 activated. @router participant + 30 tools ready.");
+  output.appendLine("Agent Router v1.7.0 activated. @router participant + 30 tools ready.");
 
   // Register all language model tools
   context.subscriptions.push(
