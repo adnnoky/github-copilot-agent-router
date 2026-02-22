@@ -113,6 +113,9 @@ export class WriteFileTool implements vscode.LanguageModelTool<WriteFileInput> {
         const { path: filePath, content: newContent } = options.input;
         const uri = resolveUri(filePath);
         try {
+            const dirPath = path.dirname(uri.fsPath);
+            const dirUri = vscode.Uri.file(dirPath);
+            await vscode.workspace.fs.createDirectory(dirUri);
             const bytes = new TextEncoder().encode(newContent);
             await vscode.workspace.fs.writeFile(uri, bytes);
             await vscode.window.showTextDocument(uri, { preserveFocus: true, preview: false });
