@@ -21,7 +21,7 @@ Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat 
   Complexity Score (0–100)
   via keyword heuristics
       │
-      ├─ Score ≤ threshold → 🟢 Free model  (gpt-4o, gpt-4o-mini, gpt-4.1)
+      ├─ Score ≤ threshold → 🟢 Free model  (gpt-4o, gpt-4o-mini)
       └─ Score >  threshold → 🔴 Premium model (o3, claude-3.5-sonnet, gemini-2.0)
       │
       ▼
