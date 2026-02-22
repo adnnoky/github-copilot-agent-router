@@ -1,0 +1,6 @@
+.vscode/**
+.git/**
+src/**
+tsconfig.json
+**/*.map
+*.vsix

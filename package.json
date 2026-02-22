@@ -1,0 +1,840 @@
+{
+  "name": "agent-router-extension",
+  "displayName": "Agent Router",
+  "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
+  "version": "1.5.0",
+  "publisher": "local",
+  "icon": "images/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adnnoky/github-copilot-agent-router.git"
+  },
+  "homepage": "https://github.com/adnnoky/github-copilot-agent-router#readme",
+  "bugs": {
+    "url": "https://github.com/adnnoky/github-copilot-agent-router/issues"
+  },
+  "enabledApiProposals": [
+    "chatParticipantAdditions"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "agent-router.router",
+        "name": "router",
+        "fullName": "Copilot Model Router",
+        "description": "Routes prompts to free or premium Copilot models, with full file-edit and terminal capabilities.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "explain",
+            "description": "Show routing decision (score, tier, model) without calling a model."
+          },
+          {
+            "name": "help",
+            "description": "Show help: usage, commands, flags, available models, and agent tools."
+          },
+          {
+            "name": "?",
+            "description": "Alias for /help — show the help page."
+          }
+        ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "agent-router_readFile",
+        "tags": [
+          "workspace",
+          "file",
+          "read"
+        ],
+        "displayName": "Read File",
+        "modelDescription": "Read the full text contents of any file in the workspace. Use this to understand existing code before making edits. Paths can be absolute or relative to the workspace root.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path, or path relative to the workspace root, of the file to read."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_writeFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Write File",
+        "modelDescription": "Create a new file or completely overwrite an existing file with the given content. Use editFile for targeted line-based changes; use writeFile only when replacing the entire file or creating a new one.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path. Parent directories are created automatically."
+            },
+            "content": {
+              "type": "string",
+              "description": "The full text content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_editFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Edit File",
+        "modelDescription": "Apply one or more targeted line-range replacements to an existing file. Each edit specifies a 1-based startLine and endLine (inclusive) and the newText to replace that range. Always read the file first to get accurate line numbers. Edits are applied safely via VS Code's WorkspaceEdit API (supports undo).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "List of edits to apply. Applied in reverse line order so line numbers stay consistent.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "startLine": {
+                    "type": "number",
+                    "description": "1-based line number where the replacement starts (inclusive)."
+                  },
+                  "endLine": {
+                    "type": "number",
+                    "description": "1-based line number where the replacement ends (inclusive)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "Text to replace the line range with. Use empty string to delete lines."
+                  }
+                },
+                "required": [
+                  "startLine",
+                  "endLine",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_listDirectory",
+        "tags": [
+          "workspace",
+          "file",
+          "read"
+        ],
+        "displayName": "List Directory",
+        "modelDescription": "List the files and subdirectories inside a directory. Returns each entry prefixed with [file] or [dir]. Use '.' or '' for the workspace root.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative directory path. Defaults to workspace root."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_runCommand",
+        "tags": [
+          "execute",
+          "terminal"
+        ],
+        "displayName": "Run Terminal Command",
+        "modelDescription": "Execute an arbitrary shell command and return its stdout and stderr. Use this to run build tools, tests, linters, package managers, git commands, etc. Commands run in the workspace root by default.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to execute."
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Optional working directory (absolute or workspace-relative). Defaults to workspace root."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Timeout in milliseconds. Default: 30000."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_searchFiles",
+        "tags": [
+          "workspace",
+          "search",
+          "read"
+        ],
+        "displayName": "Search Files",
+        "modelDescription": "Search for a text string across files in the workspace. Returns matching lines with file path and line number. Optionally filter by glob pattern.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Text string to search for (case-insensitive)."
+            },
+            "include": {
+              "type": "string",
+              "description": "Glob pattern to filter which files to search (e.g. '**/*.ts'). Default: '**/*'."
+            },
+            "exclude": {
+              "type": "string",
+              "description": "Glob pattern for files/directories to exclude (e.g. '**/node_modules/**')."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of matching lines to return. Default: 30."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_getProblems",
+        "tags": [
+          "workspace",
+          "vscode",
+          "diagnostics"
+        ],
+        "displayName": "Get Workspace Diagnostics",
+        "modelDescription": "Return errors and warnings from the VS Code Problems panel. Optionally filter to a specific file path. Use this to check for TypeScript errors, lint issues, etc. after making code changes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Optional path filter — only return diagnostics for files whose path contains this string."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_deleteFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Delete File",
+        "modelDescription": "Delete a file from the workspace. The file is moved to the system trash so it can be recovered if needed.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to the file to delete."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_renameFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Rename / Move File",
+        "modelDescription": "Rename or move a file or folder to a new path. Use this for refactoring file structure. Requires confirmation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "oldPath": {
+              "type": "string",
+              "description": "Current absolute or workspace-relative path."
+            },
+            "newPath": {
+              "type": "string",
+              "description": "New absolute or workspace-relative path."
+            }
+          },
+          "required": [
+            "oldPath",
+            "newPath"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_copyFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Copy File",
+        "modelDescription": "Duplicate a file to a new path. Useful for scaffolding from templates.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sourcePath": {
+              "type": "string",
+              "description": "Source file path."
+            },
+            "destPath": {
+              "type": "string",
+              "description": "Destination file path."
+            },
+            "overwrite": {
+              "type": "boolean",
+              "description": "Overwrite if destination exists. Defaults to false."
+            }
+          },
+          "required": [
+            "sourcePath",
+            "destPath"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_createDirectory",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Create Directory",
+        "modelDescription": "Create a directory (and any missing parent directories) at the given path.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative directory path to create."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_readFileLines",
+        "tags": [
+          "workspace",
+          "file",
+          "read"
+        ],
+        "displayName": "Read File Lines",
+        "modelDescription": "Read a specific line range from a file (1-based, inclusive). Use instead of readFile when the file is large to avoid truncation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path."
+            },
+            "startLine": {
+              "type": "number",
+              "description": "First line to read (1-based)."
+            },
+            "endLine": {
+              "type": "number",
+              "description": "Last line to read (1-based, inclusive)."
+            }
+          },
+          "required": [
+            "path",
+            "startLine",
+            "endLine"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_findAndReplace",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Find and Replace",
+        "modelDescription": "Perform find-and-replace across one or more files. Supports plain text or regex. Requires confirmation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "type": "array",
+              "description": "List of find/replace operations.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "File path."
+                  },
+                  "find": {
+                    "type": "string",
+                    "description": "Text or regex pattern to find."
+                  },
+                  "replace": {
+                    "type": "string",
+                    "description": "Replacement string."
+                  },
+                  "useRegex": {
+                    "type": "boolean",
+                    "description": "Treat 'find' as a regex. Defaults to false."
+                  }
+                },
+                "required": [
+                  "file",
+                  "find",
+                  "replace"
+                ]
+              }
+            }
+          },
+          "required": [
+            "changes"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_getSymbols",
+        "tags": [
+          "workspace",
+          "file",
+          "read"
+        ],
+        "displayName": "Get Document Symbols",
+        "modelDescription": "List all symbols (functions, classes, variables, etc.) defined in a file using the language server. Returns symbol names, kinds, and line numbers. Use this instead of reading the whole file when you need to understand code structure.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to the file."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_openFile",
+        "tags": [
+          "workspace",
+          "editor"
+        ],
+        "displayName": "Open File",
+        "modelDescription": "Open a file in the VS Code editor, optionally scrolling to a specific line. Use this to direct the user to a relevant location in the codebase.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to open."
+            },
+            "line": {
+              "type": "number",
+              "description": "Optional 1-based line number to jump to."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_showDiff",
+        "tags": [
+          "workspace",
+          "editor"
+        ],
+        "displayName": "Show Diff",
+        "modelDescription": "Open VS Code's diff editor to compare two text strings side by side. Useful for previewing changes before applying them.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "leftLabel": {
+              "type": "string",
+              "description": "Label for the left (original) side."
+            },
+            "leftContent": {
+              "type": "string",
+              "description": "Content for the left side."
+            },
+            "rightLabel": {
+              "type": "string",
+              "description": "Label for the right (modified) side."
+            },
+            "rightContent": {
+              "type": "string",
+              "description": "Content for the right side."
+            },
+            "language": {
+              "type": "string",
+              "description": "Language ID for syntax highlighting (e.g. 'typescript'). Defaults to 'plaintext'."
+            }
+          },
+          "required": [
+            "leftLabel",
+            "leftContent",
+            "rightLabel",
+            "rightContent"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_getGitStatus",
+        "tags": [
+          "workspace",
+          "git"
+        ],
+        "displayName": "Get Git Status",
+        "modelDescription": "Run git status and optionally git diff --stat to see uncommitted changes in the workspace.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "showDiff": {
+              "type": "boolean",
+              "description": "If true, also include git diff --stat output."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_getExtensionSettings",
+        "tags": [
+          "workspace",
+          "vscode"
+        ],
+        "displayName": "Get Extension Settings",
+        "modelDescription": "Read VS Code workspace configuration for a given settings section (e.g. 'editor', 'agentRouter'). Returns all keys and their current values.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "section": {
+              "type": "string",
+              "description": "The configuration section to read (e.g. 'agentRouter', 'editor', 'typescript')."
+            }
+          },
+          "required": [
+            "section"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_listOpenEditors",
+        "tags": [
+          "workspace",
+          "vscode",
+          "editor"
+        ],
+        "displayName": "List Open Editors",
+        "modelDescription": "List all currently open editor tabs in VS Code, including their file paths and which one is active.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_getSelectedText",
+        "tags": [
+          "workspace",
+          "vscode",
+          "editor"
+        ],
+        "displayName": "Get Selected Text",
+        "modelDescription": "Read the text currently selected/highlighted in the active editor, along with the file path and line range.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_insertSnippet",
+        "tags": [
+          "workspace",
+          "vscode",
+          "editor"
+        ],
+        "displayName": "Insert Snippet",
+        "modelDescription": "Insert a text snippet at the current cursor position in the active editor. Supports VS Code snippet syntax (e.g. $0 for cursor placement, $1/$2 for tab stops).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text or snippet to insert at the current cursor position."
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_runTests",
+        "tags": [
+          "workspace",
+          "terminal"
+        ],
+        "displayName": "Run Tests",
+        "modelDescription": "Run the test suite and capture the output. Defaults to 'npm test'. Requires confirmation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Test command to run (default: 'npm test')."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Timeout in milliseconds (default: 60000)."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_getTerminalOutput",
+        "tags": [
+          "workspace",
+          "terminal"
+        ],
+        "displayName": "Get Terminal Output",
+        "modelDescription": "Run a shell command in the workspace root and capture its stdout and stderr output. Requires confirmation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to execute."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Timeout in milliseconds (default: 30000)."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_fetchUrl",
+        "tags": [
+          "network"
+        ],
+        "displayName": "Fetch URL",
+        "modelDescription": "Perform an HTTP GET request to an external URL and return the response body as text. Useful for fetching documentation, API specs, or resources. Capped at 50KB by default.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The full URL to fetch (http:// or https://)."
+            },
+            "maxBytes": {
+              "type": "number",
+              "description": "Max response bytes to return (default: 50000)."
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_getWorkspaceInfo",
+        "tags": [
+          "workspace",
+          "vscode"
+        ],
+        "displayName": "Get Workspace Info",
+        "modelDescription": "Return the workspace name, root folder path, active file, language ID, cursor position, and whether there are unsaved changes. Call this first when you need context about the user's environment.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_getExtensionList",
+        "tags": [
+          "workspace",
+          "vscode"
+        ],
+        "displayName": "Get Extension List",
+        "modelDescription": "List all installed (non-built-in) VS Code extensions with their IDs, versions, and active status. Optionally filter by name or ID substring.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Optional substring to filter results by extension ID or display name."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_showNotification",
+        "tags": [
+          "vscode",
+          "editor"
+        ],
+        "displayName": "Show Notification",
+        "modelDescription": "Display an info, warning, or error notification popup to the user in VS Code.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The notification message to display."
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warning",
+                "error"
+              ],
+              "description": "Notification level. Defaults to 'info'."
+            }
+          },
+          "required": [
+            "message"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_openTerminal",
+        "tags": [
+          "workspace",
+          "terminal"
+        ],
+        "displayName": "Open Terminal",
+        "modelDescription": "Open (or reuse) a named terminal panel in VS Code. Optionally send an initial command to it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Terminal name (default: 'Agent Terminal')."
+            },
+            "command": {
+              "type": "string",
+              "description": "Optional command to send to the terminal after opening."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_clipboardRead",
+        "tags": [
+          "vscode",
+          "editor"
+        ],
+        "displayName": "Clipboard Read",
+        "modelDescription": "Read the current clipboard contents as text.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_clipboardWrite",
+        "tags": [
+          "vscode",
+          "editor"
+        ],
+        "displayName": "Clipboard Write",
+        "modelDescription": "Write text to the clipboard.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text to write to the clipboard."
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Agent Router",
+      "properties": {
+        "agentRouter.freeThreshold": {
+          "type": "number",
+          "default": 70,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Complexity score threshold (0-100). Scores at or below this go to a free Copilot model; higher scores go to a premium model."
+        },
+        "agentRouter.agentMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "When enabled, @router uses the full agentic loop with tool-calling (file edits, terminal commands, etc.). When disabled, it routes and answers without tools."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.11",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.6.3"
+  }
+}
