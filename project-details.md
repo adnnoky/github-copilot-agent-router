@@ -10,7 +10,7 @@
 | **Display Name** | Agent Router |
 | **Version** | 1.5.0 |
 | **Publisher** | local |
-| **License** | MIT |
+| **License** | See LICENSE |
 | **Author** | Adnan Okay |
 | **VS Code Minimum Version** | ^1.95.0 |
 | **Node Version** | ^20.16.11 |
@@ -95,7 +95,6 @@ agent-router/
 │   └── types.ts               # TypeScript type definitions
 ├── out/                       # Compiled JavaScript output
 ├── .github/
-│   ├── agents/                # Agent definitions
 │   └── workflows/             # CI/CD workflows
 ├── .vscode/                   # VS Code configuration
 ├── package.json               # Dependency & script definitions
@@ -103,9 +102,8 @@ agent-router/
 ├── LICENSE                    # MIT license
 ├── README.md                  # User documentation
 ├── quickstart.md              # Quick start guide
-├── CHANGELOG.md               # Full version history
-├── adnan.md                   # Author information
-└── agent-router-extension-*.vsix  # Published packages
+├── author.md                  # Author information
+├── LICENSE                    # Licensing details
 
 ```
 
@@ -282,10 +280,10 @@ All tools expose a standardized **inputSchema** for AI model invocation:
 
 | File | Purpose |
 |---|---|
-| `README.md` | User guide, configuration, usage examples, all 30 tools |
-| `quickstart.md` | Quick start instructions with .vsix install steps |
-| `adnan.md` | Author/contributor information |
-| `CHANGELOG.md` | Full version history from 0.1.0 to 1.5.0 |
+| `README.md` | User guide, configuration, usage examples |
+| `quickstart.md` | Quick start instructions |
+| `author.md` | Author/contributor information |
+| `LICENSE` | License details |
 | `project-details.md` | This file — comprehensive project documentation |
 
 ---
