@@ -2,8 +2,9 @@
   "name": "agent-router-extension",
   "displayName": "Agent Router",
   "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.5.0",
-  "publisher": "local",
+  "version": "1.6.0",
+  "publisher": "adnanokay",
+  "author": "Adnan Okay",
   "icon": "images/icon.png",
   "license": "MIT",
   "repository": {

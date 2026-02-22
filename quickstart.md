@@ -1,7 +1,7 @@
 # Agent Router — Quick Start
 
 **Author:** [Adnan Okay](https://github.com/adnnoky)  
-**Version:** 1.5.0  
+**Version:** 1.6.0  
 **Repo:** https://github.com/adnnoky/github-copilot-agent-router
 
 ---
@@ -65,6 +65,11 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`):
 | `agentRouter.agentMode` | `true` | Enable 30-tool agentic loop (file edits, terminal…) |
 
 Go to **Settings** (`Ctrl+,`) and search `agentRouter`.
+
+**Free model families:** `gpt-4.1`, `gpt-4o`, `gpt-5-mini`
+
+**Premium models** (examples): `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex` — any model family not in the free list.
+
 
 ---
 

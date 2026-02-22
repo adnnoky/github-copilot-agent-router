@@ -345,7 +345,7 @@ async function routerHandler(
 
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
-  output.appendLine("Agent Router v1.5.0 activated. @router participant + 30 tools ready.");
+  output.appendLine("Agent Router v1.6.0 activated. @router participant + 30 tools ready.");
 
   // Register all language model tools
   context.subscriptions.push(
