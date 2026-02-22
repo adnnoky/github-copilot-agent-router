@@ -8,10 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.5.0] — 2026-02-22
 
 ### Added
-- Custom extension icon (`images/icon.png`) — neural-network routing graph
-- `/help` and `/?` registered as official VS Code slash commands (reliably routed via `request.command`)
+- Custom extension icon (`images/icon.png`) — neural-network routing graph design
+- `/help` and `/?` registered as official VS Code slash commands (reliably routed via `request.command`, same pattern as `/explain`)
 - Belt-and-suspenders fallback regex for bare `help` / `?` typed without a slash
-- Help table updated to show `/help` and `/?` as canonical commands
+- `LICENSE` — standard MIT file (no extension), auto-detected by GitHub and VS Code Marketplace
+- `CHANGELOG.md` — full version history from 0.1.0 to 1.5.0 following Keep a Changelog format
+- `package.json` metadata: `"license"`, `"repository"`, `"homepage"`, `"bugs"` fields added for npm/Marketplace compatibility
+
+### Changed
+- `README.md` — full rewrite for v1.5.0: all commands table (`/help`, `/?`, `/explain`, `--model`), 30-tool listing grouped by category, `.vsix` install steps, complexity scoring table, badges (version, license, VS Code)
+- `quickstart.md` — updated with author credit, `/help` and `/?` commands, `--model` flag examples, both settings (`freeThreshold`, `agentMode`), and proper `.vsix` install steps
 
 ---
 
