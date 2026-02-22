@@ -8,9 +8,9 @@
 |---|---|
 | **Name** | agent-router-extension |
 | **Display Name** | Agent Router |
-| **Version** | 1.1.1 |
+| **Version** | 1.5.0 |
 | **Publisher** | local |
-| **License** | See licence.md |
+| **License** | See LICENSE |
 | **Author** | Adnan Okay |
 | **VS Code Minimum Version** | ^1.95.0 |
 | **Node Version** | ^20.16.11 |
@@ -67,7 +67,7 @@ agent-router/
 ├── README.md                  # User documentation
 ├── quickstart.md              # Quick start guide
 ├── author.md                  # Author information
-├── licence.md                 # Licensing details
+├── LICENSE                    # Licensing details
 └── agent-router-extension-*.vsix  # Published packages
 
 ```
@@ -205,7 +205,7 @@ All tools expose a standardized **inputSchema** for AI model invocation:
 
 | Version | Release Status |
 |---|---|
-| 1.1.1 | Current |
+| 1.5.0 | Current |
 | 1.0.0 | Stable |
 | 0.9.0 - 0.1.0 | Archive |
 
@@ -218,7 +218,7 @@ All tools expose a standardized **inputSchema** for AI model invocation:
 | `README.md` | User guide, configuration, usage examples |
 | `quickstart.md` | Quick start instructions |
 | `author.md` | Author/contributor information |
-| `licence.md` | License details |
+| `LICENSE` | License details |
 | `project-details.md` | This file — comprehensive project documentation |
 
 ---
