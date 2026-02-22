@@ -2,7 +2,7 @@
 
 > **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.95.0-blueviolet)](https://code.visualstudio.com/)
 
@@ -21,8 +21,8 @@ Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat 
   Complexity Score (0–100)
   via keyword heuristics
       │
-      ├─ Score ≤ threshold → 🟢 Free model  (gpt-4o, gpt-4o-mini)
-      └─ Score >  threshold → 🔴 Premium model (o3, claude-3.5-sonnet, gemini-2.0)
+      ├─ Score ≤ threshold → 🟢 Free model      (gpt-4.1, gpt-4o, gpt-5-mini)
+      └─ Score >  threshold → 🔴 Premium model  (claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex…)
       │
       ▼
   Full agentic loop with 30 tools (file edits, terminal, search, git…)
@@ -99,9 +99,9 @@ Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
 ### Free Model Families
 
-`gpt-4o`, `gpt-4o-mini`
+`gpt-4.1`, `gpt-4o`, `gpt-5-mini`
 
-All other available Copilot models (e.g. `o3`, `claude-3.5-sonnet`, `gemini-2.0`) are treated as **premium**.
+All other available Copilot models (e.g. `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex`) are treated as **premium**.
 
 ---
 
