@@ -4,7 +4,7 @@ import * as vscode from "vscode";
  * Model families considered "free" tier, in descending preference order.
  * Any model family NOT listed here is treated as premium.
  */
-export const FREE_MODEL_FAMILIES: readonly string[] = ["gpt-4o", "gpt-4o-mini", "gpt-4.1"];
+export const FREE_MODEL_FAMILIES: readonly string[] = ["gpt-4o", "gpt-4o-mini"];
 
 export type ModelTier = "free" | "premium";
 
