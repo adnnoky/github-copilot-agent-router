@@ -8,9 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.6.0] — 2026-02-22
 
 ### Added
-- **Publisher** updated to `Adnan Okay` in `package.json`
 
 ### Changed
+- **Publisher** in `package.json` updated from `local` to `adnanokay`
 - **Free model families:** `gpt-4.1`, `gpt-4o`, `gpt-5-mini` (removed `gpt-4o-mini`, added `gpt-4.1` and `gpt-5-mini`)
 - **Premium model examples:** `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex` (any family not in the free list)
 - `README.md` and `quickstart.md` updated to reflect new model lists and publisher
