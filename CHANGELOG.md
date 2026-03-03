@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.8.0] — 2026-03-03
+
+### Changed
+- Improved `/boost` command to evaluate and maintain previous Copilot Chat context (memory) when expanding prompts
+- Fixed invalid `sample` key property in `package.json` for the `/boost` slash command registration
+
+---
+
 ## [1.7.0] — 2026-02-22
 
 ### Changed

@@ -42,7 +42,7 @@ const PARTICIPANT_ID = "agent-router.router";
 // ── Config helpers ────────────────────────────────────────────────────────
 
 function getFreeThreshold(): number {
-  return vscode.workspace.getConfiguration("agentRouter").get<number>("freeThreshold", 70);
+  return vscode.workspace.getConfiguration("agentRouter").get<number>("freeThreshold", 90);
 }
 
 function isAgentModeEnabled(): boolean {
@@ -149,6 +149,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 |---|---|
 | \`@router /help\` | Show this help page |
 | \`@router /explain <prompt>\` | Show routing score breakdown without sending to model |
+| \`@router /boost <prompt>\` | Expand a short prompt into a highly detailed one before sending |
 
 ## 🎮 Flags
 
@@ -161,6 +162,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 @router scaffold a REST API in src/api/
 @router --model claude-3.5-sonnet refactor my auth module
 @router /explain design a distributed cache system
+@router /boost write a python fast api
 @router /help
 \`\`\`
 
@@ -226,11 +228,52 @@ async function handleExplainCommand(
   stream.markdown(`> _Run \`@router <prompt>\` (without \`/explain\`) to get a real response._`);
 }
 
+// ── /boost command ────────────────────────────────────────────────────────
+
+async function handleBoostCommand(
+  request: vscode.ChatRequest,
+  historyMessages: vscode.LanguageModelChatMessage[],
+  stream: vscode.ChatResponseStream,
+  token: vscode.CancellationToken
+): Promise<string | undefined> {
+  const prompt = request.prompt.trim();
+  if (!prompt) {
+    stream.markdown("⚠️ Provide a prompt to boost.\n\nExample: `@router /boost write a python fast api for user auth`");
+    return undefined;
+  }
+
+  stream.progress("Boosting prompt...");
+
+  const selection = await selectModel("free");
+  if (!selection) {
+    throw new Error("No model available to boost prompt.");
+  }
+
+  const systemMessage = "You are an expert prompt engineer. Your task is to take a short, simple user prompt and expand it into a highly detailed, comprehensive prompt suitable for an expert AI programming assistant. If the user prompt references previous conversation (like 'give me the same for X' or 'what about Y'), you MUST incorporate that context into the new detailed prompt so it stands alone. Ensure the resulting prompt is specific, actionable, and covers potential edge cases or architectural considerations. Output ONLY the expanded prompt, without any conversational filler or code formatting wrappers.";
+
+  const messages = [
+    vscode.LanguageModelChatMessage.User(systemMessage),
+    ...historyMessages,
+    vscode.LanguageModelChatMessage.User(`Original prompt to boost: ${prompt}`)
+  ];
+
+  const response = await selection.model.sendRequest(messages, {}, token);
+  const parts: string[] = [];
+  for await (const chunk of response.text) {
+    if (token.isCancellationRequested) { break; }
+    parts.push(chunk);
+  }
+
+  const enhancedPrompt = parts.join("").trim();
+  stream.markdown(`_🚀 **Boosted Prompt:**_\n> ${enhancedPrompt.replace(/\n/g, "\n> ")}\n\n---\n\n`);
+  return enhancedPrompt;
+}
+
 // ── Main chat participant handler ─────────────────────────────────────────
 
 async function routerHandler(
   request: vscode.ChatRequest,
-  _context: vscode.ChatContext,
+  chatContext: vscode.ChatContext,
   stream: vscode.ChatResponseStream,
   token: vscode.CancellationToken,
   output: vscode.OutputChannel
@@ -246,7 +289,42 @@ async function routerHandler(
     return;
   }
 
-  const rawPrompt = request.prompt.trim();
+  let rawPrompt = request.prompt.trim();
+
+  // Parse optional --model flag before processing boost
+  let modelOverride = parseModelFlag(rawPrompt);
+  if (modelOverride) {
+    rawPrompt = modelOverride.cleanPrompt;
+  }
+
+  // Convert chat history
+  const historyMessages: vscode.LanguageModelChatMessage[] = [];
+  for (const turn of chatContext.history) {
+    if (turn instanceof vscode.ChatRequestTurn) {
+      historyMessages.push(vscode.LanguageModelChatMessage.User(turn.prompt));
+    } else if (turn instanceof vscode.ChatResponseTurn) {
+      const textParts = turn.response
+        .filter(p => p instanceof vscode.ChatResponseMarkdownPart)
+        .map(p => (p as vscode.ChatResponseMarkdownPart).value.value);
+      if (textParts.length > 0) {
+        historyMessages.push(vscode.LanguageModelChatMessage.Assistant(textParts.join("\n")));
+      }
+    }
+  }
+
+  if (request.command === "boost") {
+    // Re-create a mock request so handleBoostCommand gets the prompt without the --model flag
+    const reqWithoutModel = { ...request, prompt: rawPrompt };
+    try {
+      const boosted = await handleBoostCommand(reqWithoutModel, historyMessages, stream, token);
+      if (!boosted) return;
+      rawPrompt = boosted;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      output.appendLine(`[Boost Error] ${msg}`);
+      stream.markdown(`⚠️ _Failed to boost prompt: ${msg}_ \n\n`);
+    }
+  }
 
   // Fallback: bare "help" / "?" typed without a slash (belt-and-suspenders)
   if (/^(help|\?)$/i.test(rawPrompt)) {
@@ -256,9 +334,7 @@ async function routerHandler(
 
   const attachedContext = await resolveReferences(request.references);
 
-  // Parse optional --model flag
-  const modelOverride = parseModelFlag(rawPrompt);
-  const prompt = modelOverride ? modelOverride.cleanPrompt : rawPrompt;
+  const prompt = rawPrompt;
 
 
   if (!prompt && !attachedContext) {
@@ -309,6 +385,7 @@ async function routerHandler(
     await runAgentLoop(
       selection.model,
       fullPrompt,
+      historyMessages,
       stream,
       request.toolInvocationToken,
       token,
@@ -319,7 +396,10 @@ async function routerHandler(
     let response: vscode.LanguageModelChatResponse;
     try {
       response = await selection.model.sendRequest(
-        [vscode.LanguageModelChatMessage.User(fullPrompt)],
+        [
+          ...historyMessages,
+          vscode.LanguageModelChatMessage.User(fullPrompt)
+        ],
         {},
         token
       );

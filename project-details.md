@@ -143,7 +143,7 @@ All settings are under the `agentRouter` namespace in VS Code settings:
 
 | Setting | Type | Default | Description |
 |---|---|---|---|
-| `agentRouter.freeThreshold` | number | 70 | Complexity threshold (0–100) |
+| `agentRouter.freeThreshold` | number | 90 | Complexity threshold (0–100) |
 | `agentRouter.agentMode` | boolean | true | Enable/disable full agentic loop |
 
 ---

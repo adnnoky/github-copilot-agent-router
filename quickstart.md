@@ -61,7 +61,7 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`):
 
 | Setting | Default | What it does |
 |---|---|---|
-| `agentRouter.freeThreshold` | `70` | Scores ≤ this → free model; higher → premium |
+| `agentRouter.freeThreshold` | `90` | Scores ≤ this → free model; higher → premium |
 | `agentRouter.agentMode` | `true` | Enable 30-tool agentic loop (file edits, terminal…) |
 
 Go to **Settings** (`Ctrl+,`) and search `agentRouter`.

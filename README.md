@@ -65,6 +65,7 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 | `@router <prompt>` | Score, route and answer your prompt |
 | `@router /help` or `@router /?` | Show the full help page |
 | `@router /explain <prompt>` | Show routing decision (score, tier, model) — no LLM call |
+| `@router /boost <prompt>` | Expand a short prompt into a detailed one (now supports chat history memory) |
 | `@router --model <name> <prompt>` | Pin a specific model, bypass auto-routing |
 
 ### Examples
@@ -92,7 +93,7 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 
 | Setting | Type | Default | Description |
 |---|---|---|---|
-| `agentRouter.freeThreshold` | `number` | `70` | Complexity score (0–100). Scores ≤ this go to a free model. |
+| `agentRouter.freeThreshold` | `number` | `90` | Complexity score (0–100). Scores ≤ this go to a free model. |
 | `agentRouter.agentMode` | `boolean` | `true` | Enable/disable the full agentic tool-calling loop. |
 
 Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.

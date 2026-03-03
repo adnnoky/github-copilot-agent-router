@@ -2,7 +2,7 @@
   "name": "agent-router-extension",
   "displayName": "Agent Router",
   "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "publisher": "adnanokay",
   "author": "Adnan Okay",
   "icon": "images/icon.png",
@@ -34,7 +34,7 @@
       {
         "id": "agent-router.router",
         "name": "router",
-        "fullName": "Copilot Model Router",
+        "fullName": "Agent Router",
         "description": "Routes prompts to free or premium Copilot models, with full file-edit and terminal capabilities.",
         "isSticky": true,
         "commands": [
@@ -45,6 +45,12 @@
           {
             "name": "help",
             "description": "Show help: usage, commands, flags, available models, and agent tools."
+          },
+          {
+            "name": "boost",
+            "description": "Expand a simple prompt into a comprehensive one before sending to the model.",
+            "isSticky": true,
+            "sampleRequest": "write a python fast api for user auth"
           }
         ]
       }
@@ -811,7 +817,7 @@
       "properties": {
         "agentRouter.freeThreshold": {
           "type": "number",
-          "default": 70,
+          "default": 90,
           "minimum": 0,
           "maximum": 100,
           "description": "Complexity score threshold (0-100). Scores at or below this go to a free Copilot model; higher scores go to a premium model."
