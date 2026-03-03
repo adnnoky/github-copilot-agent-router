@@ -168,7 +168,7 @@ npm run watch     # watch mode
 # Package for distribution
 npx vsce package
 # Install locally
-code --install-extension agent-router-extension-1.5.0.vsix
+code --install-extension agent-router-extension-1.8.0.vsix
 ```
 
 ---
