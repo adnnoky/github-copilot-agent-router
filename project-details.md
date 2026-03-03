@@ -9,7 +9,7 @@
 | **Name** | agent-router-extension |
 | **Display Name** | Agent Router |
 | **Version** | 1.8.0 |
-| **Publisher** | local |
+| **Publisher** | adnanokay |
 | **License** | See LICENSE |
 | **Author** | Adnan Okay |
 | **VS Code Minimum Version** | ^1.95.0 |
@@ -22,8 +22,8 @@
 
 ### Auto-Routing Engine
 - Analyzes prompt complexity on a scale of 0–100
-- Routes scores ≤ free threshold (default: 70) → free models (gpt-4o, gpt-4o-mini, gpt-4.1)
-- Routes scores > threshold → premium models (o3, claude-3.5-sonnet, gemini-2.0)
+- Routes scores ≤ free threshold (default: 90) → free models (gpt-4.1, gpt-4o, gpt-5-mini)
+- Routes scores > threshold → premium models (claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex)
 - Non-blocking keyword heuristics for fast scoring
 
 ### Chat Participant
@@ -265,7 +265,10 @@ All tools expose a standardized **inputSchema** for AI model invocation:
 
 | Version | Release Status | Highlights |
 |---|---|---|
-| 1.5.0 | Current | Icon, /help & /? commands, README/docs rewrite, package.json metadata |
+| 1.8.0 | Current | `/boost` context memory fix, `freeThreshold` default raised to 90, `claude-sonnet-4.6` preferred for premium |
+| 1.7.0 | Stable | Improved extension icon with transparent background, removed `/?` alias |
+| 1.6.0 | Stable | Publisher updated to `adnanokay`, free models updated to `gpt-4.1`/`gpt-4o`/`gpt-5-mini` |
+| 1.5.0 | Stable | Icon, /help & /? commands, README/docs rewrite, package.json metadata |
 | 1.4.0 | Stable | 6 new tools: workspace info, extension list, notifications, terminal, clipboard |
 | 1.3.0 | Stable | 8 new tools: git status, settings, open editors, selection, snippet, tests, terminal, fetch |
 | 1.2.0 | Stable | 5 new tools: readFileLines, findAndReplace, getSymbols, openFile, showDiff |
