@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.8.0] — 2026-03-03
+
+### Changed
+- Improved `/boost` command to evaluate and maintain previous Copilot Chat context (memory) when expanding prompts
+- Fixed invalid `sample` key property in `package.json` for the `/boost` slash command registration
+- Increased default `freeThreshold` setting from `70` to `90` to bias more requests toward free model families by default
+- Updated `selectModel()` preference order to favor premium model family `claude-sonnet-4.6` when available
+- Now prepend prior chat history to all model requests (agent and non-agent), which may affect privacy expectations, context length utilization, and token cost
+
+---
+
 ## [1.7.0] — 2026-02-22
 
 ### Changed

@@ -31,6 +31,7 @@ function summarizeToolCall(name: string, input: unknown): string {
 export async function runAgentLoop(
     model: vscode.LanguageModelChat,
     userPrompt: string,
+    history: vscode.LanguageModelChatMessage[],
     stream: vscode.ChatResponseStream,
     toolInvocationToken: vscode.ChatParticipantToolToken | undefined,
     token: vscode.CancellationToken,
@@ -43,7 +44,9 @@ export async function runAgentLoop(
     }
 
     const messages: vscode.LanguageModelChatMessage[] = [
-        vscode.LanguageModelChatMessage.User(`${SYSTEM_PROMPT}\n\nUser request: ${userPrompt}`)
+        vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT),
+        ...history,
+        vscode.LanguageModelChatMessage.User(`User request: ${userPrompt}`)
     ];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

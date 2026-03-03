@@ -67,7 +67,15 @@ export async function selectModel(tier: ModelTier): Promise<ModelSelection | und
         return { model: fallback, tier: "free", family: fallback.family };
     }
 
-    // Premium: pick any model that is NOT in the free list
+    // Premium: prioritize claude-sonnet-4.6
+    const preferredPremium = allModels.find(
+        (m) => m.family.toLowerCase() === "claude-sonnet-4.6"
+    );
+    if (preferredPremium) {
+        return { model: preferredPremium, tier: "premium", family: preferredPremium.family };
+    }
+
+    // Fallback premium: pick any model that is NOT in the free list
     const premiumModel = allModels.find((m) => !isFreeFamily(m.family));
     if (premiumModel) {
         return { model: premiumModel, tier: "premium", family: premiumModel.family };
