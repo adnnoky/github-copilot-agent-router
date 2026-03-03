@@ -8,7 +8,7 @@
 |---|---|
 | **Name** | agent-router-extension |
 | **Display Name** | Agent Router |
-| **Version** | 1.5.0 |
+| **Version** | 1.8.0 |
 | **Publisher** | local |
 | **License** | See LICENSE |
 | **Author** | Adnan Okay |
