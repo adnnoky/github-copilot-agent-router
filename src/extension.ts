@@ -149,7 +149,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 |---|---|
 | \`@router /help\` | Show this help page |
 | \`@router /explain <prompt>\` | Show routing score breakdown without sending to model |
-| \`@router /boost <prompt>\` | Expand a short prompt into a highly detailed one before sending |
+| \`@router /boost <prompt>\` | Expand a short prompt into a highly detailed one before sending (makes an extra model call with your prompt and chat history to generate the boosted prompt, then sends it for the final answer) |
 
 ## 🎮 Flags
 
