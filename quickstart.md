@@ -34,6 +34,7 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`):
 | `@router <prompt>` | Score, route, and answer your prompt |
 | `@router /help` or `@router /?` | Show the full help page |
 | `@router /explain <prompt>` | Dry-run: show routing decision without calling a model |
+| `@router /boost <prompt>` | Expand a short prompt into a detailed one (supports chat history memory) |
 | `@router --model <name> <prompt>` | Pin a specific Copilot model, bypass routing |
 
 ### Quick Examples
