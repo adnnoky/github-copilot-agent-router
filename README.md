@@ -2,7 +2,7 @@
 
 > **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.95.0-blueviolet)](https://code.visualstudio.com/)
 
@@ -65,7 +65,7 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 | `@router <prompt>` | Score, route and answer your prompt |
 | `@router /help` or `@router /?` | Show the full help page |
 | `@router /explain <prompt>` | Show routing decision (score, tier, model) — no LLM call |
-| `@router /boost <prompt>` | Expand a short prompt into a detailed one (now supports chat history memory) |
+| `@router /boost <prompt>` | Expand a short prompt into a detailed one using chat history for context |
 | `@router --model <name> <prompt>` | Pin a specific model, bypass auto-routing |
 
 ### Examples
@@ -86,6 +86,16 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 @router /help
 → Shows full help, available models, and tool list
 ```
+
+---
+
+## Chat Memory
+
+Starting with v1.8.0, **all** model requests — routing, agentic tool loops, simple responses, and `/boost` prompt expansion — automatically include the preceding turns of your current Copilot Chat session as context. This lets the model reference earlier questions and answers in the same conversation without you repeating yourself.
+
+**Context-length note:** Each prior turn adds tokens to the request. Very long conversations may approach a model's context window limit. If you notice slower responses or truncated answers, start a new chat session to reset the history.
+
+**Privacy note:** Conversation history is passed to the selected Copilot model (the same model that already handles your prompt). No history is stored or sent anywhere outside of the active Copilot session.
 
 ---
 
