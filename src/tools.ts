@@ -149,6 +149,7 @@ export class WriteFileTool implements vscode.LanguageModelTool<WriteFileInput> {
             const bytes = new TextEncoder().encode(newContent);
             await vscode.workspace.fs.writeFile(uri, bytes);
             await closeDiffEditor(filePath);
+            proposedContentMap.delete(uri.path);
             await vscode.window.showTextDocument(uri, { preserveFocus: true, preview: false });
             return ok(`SUCCESS: wrote ${bytes.length} bytes to "${filePath}".`);
         } catch (e) {
