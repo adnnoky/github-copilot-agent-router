@@ -2,7 +2,7 @@
 
 > **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.95.0-blueviolet)](https://code.visualstudio.com/)
 
@@ -172,7 +172,7 @@ npm run watch     # watch mode
 # Package for distribution
 npx vsce package
 # Install locally
-code --install-extension agent-router-extension-1.8.0.vsix
+code --install-extension agent-router-extension-1.9.0.vsix
 ```
 
 ---
