@@ -22,7 +22,7 @@
 
 ### Auto-Routing Engine
 - Analyzes prompt complexity on a scale of 0–100
-- Routes scores ≤ free threshold (default: 90) → free models (gpt-4.1, gpt-4o, gpt-5-mini)
+- Routes scores ≤ free threshold (default: 90) → free models (gpt-5-mini, gpt-4o, gpt-4.1)
 - Routes scores > threshold → premium models (claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex)
 - Non-blocking keyword heuristics for fast scoring
 

@@ -21,7 +21,7 @@ Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat 
   Complexity Score (0–100)
   via keyword heuristics
       │
-      ├─ Score ≤ threshold → 🟢 Free model      (gpt-4.1, gpt-4o, gpt-5-mini)
+      ├─ Score ≤ threshold → 🟢 Free model      (gpt-5-mini, gpt-4o, gpt-4.1)
       └─ Score >  threshold → 🔴 Premium model  (claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex…)
       │
       ▼
@@ -114,7 +114,7 @@ Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
 ### Free Model Families
 
-`gpt-4.1`, `gpt-4o`, `gpt-5-mini`
+`gpt-5-mini`, `gpt-4o`, `gpt-4.1`
 
 All other available Copilot models (e.g. `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex`) are treated as **premium**.
 
