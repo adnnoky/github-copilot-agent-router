@@ -1,7 +1,7 @@
 # Agent Router — Quick Start
 
 **Author:** [Adnan Okay](https://github.com/adnnoky)  
-**Version:** 1.8.0  
+**Version:** 1.9.0  
 **Repo:** https://github.com/adnnoky/github-copilot-agent-router
 
 ---
