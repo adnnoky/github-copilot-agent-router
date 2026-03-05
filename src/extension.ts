@@ -33,7 +33,8 @@ import {
   ShowNotificationTool,
   OpenTerminalTool,
   ClipboardReadTool,
-  ClipboardWriteTool
+  ClipboardWriteTool,
+  registerProposedContentProvider
 } from "./tools";
 
 const OUTPUT_CHANNEL_NAME = "Agent Router";
@@ -150,6 +151,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 | \`@router /help\` | Show this help page |
 | \`@router /explain <prompt>\` | Show routing score breakdown without sending to model |
 | \`@router /boost <prompt>\` | Expand a short prompt into a highly detailed one before sending (makes an extra model call with your prompt and chat history to generate the boosted prompt, then sends it for the final answer) |
+| \`@router /<model> <prompt>\` | Select a model directly from the autocomplete dropdown to pin it. (e.g. \`@router /gpt-4o\`) |
 
 ## 🎮 Flags
 
@@ -160,7 +162,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 **Examples:**
 \`\`\`
 @router scaffold a REST API in src/api/
-@router --model claude-3.5-sonnet refactor my auth module
+@router /claude-sonnet-4.6 refactor my auth module
 @router /explain design a distributed cache system
 @router /boost write a python fast api
 @router /help
@@ -289,10 +291,27 @@ async function routerHandler(
     return;
   }
 
+  const KNOWN_MODELS: string[] = ["gpt-4o", "gpt-4.1", "gpt-5-mini", "claude-sonnet-4.6", "gemini-3-pro", "claude-haiku-4.5", "gpt-5.3-codex"];
   let rawPrompt = request.prompt.trim();
 
-  // Parse optional --model flag before processing boost
-  let modelOverride = parseModelFlag(rawPrompt);
+  // Parse model override (either from a primary slash command, a secondary one in the text, or a --model flag)
+  let modelOverride = null;
+
+  if (request.command && KNOWN_MODELS.includes(request.command)) {
+    modelOverride = { modelName: request.command, cleanPrompt: rawPrompt };
+  } else {
+    // Check if the prompt starts with a known model slash command (e.g. user typed `/boost /gpt-4o`)
+    const firstWordMatch = rawPrompt.match(/^\/([^ ]+)(?:\s+|$)/);
+    if (firstWordMatch && KNOWN_MODELS.includes(firstWordMatch[1])) {
+      modelOverride = {
+        modelName: firstWordMatch[1],
+        cleanPrompt: rawPrompt.substring(firstWordMatch[0].length).trim()
+      };
+    } else {
+      modelOverride = parseModelFlag(rawPrompt);
+    }
+  }
+
   if (modelOverride) {
     rawPrompt = modelOverride.cleanPrompt;
   }
@@ -306,14 +325,42 @@ async function routerHandler(
       const textParts = turn.response
         .filter(p => p instanceof vscode.ChatResponseMarkdownPart)
         .map(p => (p as vscode.ChatResponseMarkdownPart).value.value);
+
       if (textParts.length > 0) {
-        historyMessages.push(vscode.LanguageModelChatMessage.Assistant(textParts.join("\n")));
+        let fullText = textParts.join("\n");
+
+        // Strip out the custom Agent Router header from history so the LLM doesn't try to hallucinate/repeat it
+        if ((fullText.includes("Pinned model:") || fullText.includes("Routed to")) && fullText.includes("---")) {
+          // The header is followed by \n\n---\n\n. We want to remove everything up to and including the ---
+          const match = fullText.match(/^[\s\S]*?(?:-{3,})[\s\n]*/);
+          if (match && (match[0].includes("Pinned model:") || match[0].includes("Routed to"))) {
+            fullText = fullText.substring(match[0].length).trim();
+          }
+        }
+
+        // Catch any remaining hallucinations from prior turns that escaped the first pass
+        fullText = fullText.replace(/^.*?(?:Pinned model:|Routed to (?:free|premium) tier).*?$/gim, "").trim();
+
+        if (fullText) {
+          historyMessages.push(vscode.LanguageModelChatMessage.Assistant(fullText));
+        }
       }
     }
   }
 
-  if (request.command === "boost") {
-    // Re-create a mock request so handleBoostCommand gets the prompt without the --model flag
+  // Check if boost is requested (either as primary command or as a secondary command in the text)
+  let isBoostRequested = request.command === "boost";
+
+  if (!isBoostRequested) {
+    const boostMatch = rawPrompt.match(/^\/boost(?:\s+|$)/);
+    if (boostMatch) {
+      isBoostRequested = true;
+      rawPrompt = rawPrompt.substring(boostMatch[0].length).trim();
+    }
+  }
+
+  if (isBoostRequested) {
+    // Re-create a mock request so handleBoostCommand gets the prompt without the --model flag or slash commands
     const reqWithoutModel = { ...request, prompt: rawPrompt };
     try {
       const boosted = await handleBoostCommand(reqWithoutModel, historyMessages, stream, token);
@@ -382,6 +429,7 @@ async function routerHandler(
 
   // 4. Agentic loop (if enabled) or simple single request
   if (agentMode) {
+    const isComplex = decision.tier === "premium";
     await runAgentLoop(
       selection.model,
       fullPrompt,
@@ -389,7 +437,8 @@ async function routerHandler(
       stream,
       request.toolInvocationToken,
       token,
-      output
+      output,
+      isComplex
     );
   } else {
     // Simple single-shot request without tools
@@ -425,7 +474,9 @@ async function routerHandler(
 
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
-  output.appendLine("Agent Router v1.8.0 activated. @router participant + 30 tools ready.");
+  output.appendLine("Agent Router v1.9.0 activated. @router participant + 30 tools ready.");
+
+  registerProposedContentProvider(context);
 
   // Register all language model tools
   context.subscriptions.push(

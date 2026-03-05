@@ -2,7 +2,7 @@
 
 > **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.95.0-blueviolet)](https://code.visualstudio.com/)
 
@@ -21,7 +21,7 @@ Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat 
   Complexity Score (0–100)
   via keyword heuristics
       │
-      ├─ Score ≤ threshold → 🟢 Free model      (gpt-4.1, gpt-4o, gpt-5-mini)
+      ├─ Score ≤ threshold → 🟢 Free model      (gpt-5-mini, gpt-4o, gpt-4.1)
       └─ Score >  threshold → 🔴 Premium model  (claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex…)
       │
       ▼
@@ -66,7 +66,8 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 | `@router /help` or `@router /?` | Show the full help page |
 | `@router /explain <prompt>` | Show routing decision (score, tier, model) — no LLM call |
 | `@router /boost <prompt>` | Expand a short prompt into a detailed one using chat history for context |
-| `@router --model <name> <prompt>` | Pin a specific model, bypass auto-routing |
+| `@router /<model> <prompt>` | Pin a specific model via the autocomplete dropdown, bypassing auto-routing. (e.g., `@router /gpt-4o`) |
+| `@router --model <name> <prompt>` | Pin a specific model manually, bypassing auto-routing |
 
 ### Examples
 
@@ -77,8 +78,11 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 @router design a distributed OAuth2 auth system with Kubernetes and Redis caching
 → 🔴 Premium tier (claude-3.5-sonnet) — high complexity
 
-@router --model claude-3.5-sonnet refactor my auth module
-→ 📌 Pinned model (claude-3.5-sonnet)
+@router /claude-sonnet-4.6 refactor my auth module
+→ 📌 Pinned model (claude-sonnet-4.6)
+
+@router /claude-sonnet-4.6 /boost implement missing methods
+→ 📌 Pinned model (claude-sonnet-4.6), expands prompt with history, then generates answer
 
 @router /explain refactor my authentication module for microservices
 → Shows score breakdown without making any model call
@@ -110,7 +114,7 @@ Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
 ### Free Model Families
 
-`gpt-4.1`, `gpt-4o`, `gpt-5-mini`
+`gpt-5-mini`, `gpt-4o`, `gpt-4.1`
 
 All other available Copilot models (e.g. `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex`) are treated as **premium**.
 
@@ -168,7 +172,7 @@ npm run watch     # watch mode
 # Package for distribution
 npx vsce package
 # Install locally
-code --install-extension agent-router-extension-1.8.0.vsix
+code --install-extension agent-router-extension-1.9.0.vsix
 ```
 
 ---
