@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { closeDiffEditor } from "./tools";
 
 export const AGENT_TOOL_PREFIX = "agent-router_";
 export const MAX_TOOL_ROUNDS = 15;
@@ -35,7 +36,8 @@ export async function runAgentLoop(
     stream: vscode.ChatResponseStream,
     toolInvocationToken: vscode.ChatParticipantToolToken | undefined,
     token: vscode.CancellationToken,
-    output: vscode.OutputChannel
+    output: vscode.OutputChannel,
+    isComplex?: boolean
 ): Promise<void> {
     const agentTools = vscode.lm.tools.filter(t => t.name.startsWith(AGENT_TOOL_PREFIX));
 
@@ -43,10 +45,14 @@ export async function runAgentLoop(
         output.appendLine("[Agent] Warning: no agent-router tools found");
     }
 
+    const planInstruction = isComplex
+        ? "This is a complex request. Before taking any actions or calling any tools, you MUST first output a step-by-step to-do list plan of how you will solve this. Do not skip this planning step.\n\n"
+        : "";
+
     const messages: vscode.LanguageModelChatMessage[] = [
         vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT),
         ...history,
-        vscode.LanguageModelChatMessage.User(`User request: ${userPrompt}`)
+        vscode.LanguageModelChatMessage.User(`${planInstruction}User request: ${userPrompt}`)
     ];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -101,6 +107,10 @@ export async function runAgentLoop(
                 resultContent = result.content as Array<vscode.LanguageModelTextPart | vscode.LanguageModelPromptTsxPart>;
                 output.appendLine(`[Tool Result] ${resultContent.map(p => p instanceof vscode.LanguageModelTextPart ? p.value.slice(0, 120) : "(non-text)").join(" | ")}`);
             } catch (e) {
+                if ((call.name === `${AGENT_TOOL_PREFIX}writeFile` || call.name === `${AGENT_TOOL_PREFIX}editFile`) &&
+                    typeof call.input === "object" && call.input !== null && "path" in call.input) {
+                    await closeDiffEditor((call.input as any).path);
+                }
                 const msg = `Tool "${call.name}" error: ${e instanceof Error ? e.message : String(e)}`;
                 resultContent = [new vscode.LanguageModelTextPart(msg)];
                 output.appendLine(`[Tool Error] ${msg}`);

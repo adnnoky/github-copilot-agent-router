@@ -2,7 +2,7 @@
   "name": "agent-router-extension",
   "displayName": "Agent Router",
   "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "publisher": "adnanokay",
   "author": "Adnan Okay",
   "icon": "images/icon.png",
@@ -51,6 +51,34 @@
             "description": "Expand a simple prompt into a comprehensive one before sending to the model.",
             "isSticky": true,
             "sampleRequest": "write a python fast api for user auth"
+          },
+          {
+            "name": "gpt-4o",
+            "description": "Route this request specifically to the gpt-4o model."
+          },
+          {
+            "name": "gpt-4.1",
+            "description": "Route this request specifically to the gpt-4.1 model."
+          },
+          {
+            "name": "gpt-5-mini",
+            "description": "Route this request specifically to the gpt-5-mini model."
+          },
+          {
+            "name": "claude-sonnet-4.6",
+            "description": "Route this request specifically to the claude-sonnet-4.6 model."
+          },
+          {
+            "name": "gemini-3-pro",
+            "description": "Route this request specifically to the gemini-3-pro model."
+          },
+          {
+            "name": "claude-haiku-4.5",
+            "description": "Route this request specifically to the claude-haiku-4.5 model."
+          },
+          {
+            "name": "gpt-5.3-codex",
+            "description": "Route this request specifically to the gpt-5.3-codex model."
           }
         ]
       }

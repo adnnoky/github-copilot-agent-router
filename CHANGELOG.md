@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.9.0] — 2026-03-05
+
+### Added
+- Native VS Code Autocomplete for Models: Registered all free and premium models as official slash commands (e.g., `/gpt-4o`, `/claude-sonnet-4.6`). You can now just type `@router /` and select your desired model to bypass auto-routing.
+- Improved Multi-Slash Command Parsing: VS Code's chat input natively only recognizes the first slash command. Extended the parser so users can chain slash commands freely inside the text prompt (e.g., `@router /gpt-4o /boost <prompt>`).
+
+### Fixed
+- Fixed an issue where the extension's markdown routing headers ("Pinned model:") were bleeding into the LLM chat history context, causing the AI model to hallucinate and duplicate the header on subsequent messages. The history parser now aggressively strips these auto-generated lines using a dual-pass regex check.
+
+---
+
 ## [1.8.0] — 2026-03-03
 
 ### Changed

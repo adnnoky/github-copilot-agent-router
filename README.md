@@ -66,7 +66,8 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 | `@router /help` or `@router /?` | Show the full help page |
 | `@router /explain <prompt>` | Show routing decision (score, tier, model) — no LLM call |
 | `@router /boost <prompt>` | Expand a short prompt into a detailed one using chat history for context |
-| `@router --model <name> <prompt>` | Pin a specific model, bypass auto-routing |
+| `@router /<model> <prompt>` | Pin a specific model via the autocomplete dropdown, bypassing auto-routing. (e.g., `@router /gpt-4o`) |
+| `@router --model <name> <prompt>` | Pin a specific model manually, bypassing auto-routing |
 
 ### Examples
 
@@ -77,8 +78,11 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 @router design a distributed OAuth2 auth system with Kubernetes and Redis caching
 → 🔴 Premium tier (claude-3.5-sonnet) — high complexity
 
-@router --model claude-3.5-sonnet refactor my auth module
-→ 📌 Pinned model (claude-3.5-sonnet)
+@router /claude-sonnet-4.6 refactor my auth module
+→ 📌 Pinned model (claude-sonnet-4.6)
+
+@router /claude-sonnet-4.6 /boost implement missing methods
+→ 📌 Pinned model (claude-sonnet-4.6), expands prompt with history, then generates answer
 
 @router /explain refactor my authentication module for microservices
 → Shows score breakdown without making any model call

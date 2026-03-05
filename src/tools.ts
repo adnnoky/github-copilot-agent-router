@@ -9,6 +9,22 @@ const exec = promisify(cp.exec);
 const MAX_READ_CHARS = 100_000;
 const MAX_SEARCH_RESULTS = 30;
 
+// ── Readonly Content Provider for Diff Proposals ───────────────────────────
+
+const proposedContentMap = new Map<string, string>();
+
+export const proposedContentProvider = new class implements vscode.TextDocumentContentProvider {
+    provideTextDocumentContent(uri: vscode.Uri): string {
+        return proposedContentMap.get(uri.path) ?? "";
+    }
+};
+
+export function registerProposedContentProvider(context: vscode.ExtensionContext) {
+    context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider("agent-router-proposed", proposedContentProvider)
+    );
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function getWorkspaceRoot(): string {
@@ -24,6 +40,18 @@ function resolveUri(filePath: string): vscode.Uri {
 
 function ok(msg: string): vscode.LanguageModelToolResult {
     return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(msg)]);
+}
+
+export async function closeDiffEditor(filePath: string) {
+    const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+    const targetLabel = `🔄 ${fileName}: Current ↔ Proposed`;
+    for (const group of vscode.window.tabGroups.all) {
+        for (const tab of group.tabs) {
+            if (tab.label === targetLabel) {
+                await vscode.window.tabGroups.close(tab);
+            }
+        }
+    }
 }
 
 // ── 1. Read File ───────────────────────────────────────────────────────────
@@ -74,7 +102,6 @@ export class WriteFileTool implements vscode.LanguageModelTool<WriteFileInput> {
 
         try {
             const language = detectLanguage(filePath);
-            const proposedDoc = await vscode.workspace.openTextDocument({ content: newContent, language });
 
             let leftUri: vscode.Uri;
             try {
@@ -86,10 +113,13 @@ export class WriteFileTool implements vscode.LanguageModelTool<WriteFileInput> {
             }
 
             const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+            const rightUri = vscode.Uri.parse(`agent-router-proposed:${uri.path}`);
+            proposedContentMap.set(uri.path, newContent);
+
             await vscode.commands.executeCommand(
                 "vscode.diff",
                 leftUri,
-                proposedDoc.uri,
+                rightUri,
                 `🔄 ${fileName}: Current ↔ Proposed`,
                 { preview: true }
             );
@@ -118,6 +148,7 @@ export class WriteFileTool implements vscode.LanguageModelTool<WriteFileInput> {
             await vscode.workspace.fs.createDirectory(dirUri);
             const bytes = new TextEncoder().encode(newContent);
             await vscode.workspace.fs.writeFile(uri, bytes);
+            await closeDiffEditor(filePath);
             await vscode.window.showTextDocument(uri, { preserveFocus: true, preview: false });
             return ok(`SUCCESS: wrote ${bytes.length} bytes to "${filePath}".`);
         } catch (e) {
@@ -154,13 +185,14 @@ export class EditFileTool implements vscode.LanguageModelTool<EditFileInput> {
             }
             const proposedText = resultLines.join("\n");
 
-            const language = detectLanguage(filePath);
-            const proposedDoc = await vscode.workspace.openTextDocument({ content: proposedText, language });
             const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+            const rightUri = vscode.Uri.parse(`agent-router-proposed:${uri.path}`);
+            proposedContentMap.set(uri.path, proposedText);
+
             await vscode.commands.executeCommand(
                 "vscode.diff",
                 uri,
-                proposedDoc.uri,
+                rightUri,
                 `🔄 ${fileName}: Current ↔ Proposed`,
                 { preview: true }
             );
@@ -199,6 +231,7 @@ export class EditFileTool implements vscode.LanguageModelTool<EditFileInput> {
             }
             const success = await vscode.workspace.applyEdit(we);
             if (success) {
+                await closeDiffEditor(filePath);
                 await vscode.window.showTextDocument(uri, { preserveFocus: true, preview: false });
             }
             return ok(success
@@ -275,6 +308,7 @@ export class RunCommandTool implements vscode.LanguageModelTool<RunCommandInput>
             const parts = [`Exit code: ${err.code ?? "unknown"}`];
             if (err.stdout?.trim()) { parts.push(`STDOUT:\n${err.stdout.trim()}`); }
             if (err.stderr?.trim()) { parts.push(`STDERR:\n${err.stderr.trim()}`); }
+            if (err.message) { parts.push(`ERROR:\n${err.message}`); }
             return ok(parts.join("\n"));
         }
     }
