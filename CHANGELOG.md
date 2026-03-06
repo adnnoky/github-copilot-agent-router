@@ -5,7 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [1.9.0] — 2026-03-05
+## [1.9.3] — 2026-03-06
+
+### Fixed
+- Changed headless terminal tools (`getTerminalOutput`, `getGitStatus`, `runTests`) to explicitly use PowerShell on Windows. This fixes an issue where the AI model writing bash-like commands (e.g. `mkdir -p` or `ls`) would fail in `cmd.exe` with "The syntax of the command is incorrect".
+- Applied strict character limits and paragraph formatting constraints to the `@router /boost` internal prompt, preventing it from occasionally generating a massive single line of text that could freeze the VS Code terminal/chat UI.
+
+---
+
+## [1.9.2] — 2026-03-06
+
+### Added
+- **Hybrid Agent Loop**: By default, complex tasks routed to a Premium model will now automatically switch to a highly capable Free model (`gpt-4o`) for all the routine, intermediate tool execution steps (reading files, listing directories, etc). The Premium model is reserved only for the initial planning. This drastically cuts down on Copilot Pro "Premium Requests" consumption. Controlled via `agentRouter.hybridAgentMode`.
+
+### Changed
+- Promoted `gpt-4o` to be the primary default Free model (swapping places with `gpt-5-mini`) because it follows tool-calling schemas and system prompt safety overrides more consistently (especially regarding its willingness to run terminal commands).
+- Updated the Agent `SYSTEM_PROMPT` to explicitly notify the AI models that they *do* have authorization to use terminal commands, reducing instances where Free models falsely claim they lack permissions.
+
+---
+
+## [1.9.1] — 2026-03-05
 
 ### Added
 - Native VS Code Autocomplete for Models: Registered all free and premium models as official slash commands (e.g., `/gpt-4o`, `/claude-sonnet-4.6`). You can now just type `@router /` and select your desired model to bypass auto-routing.

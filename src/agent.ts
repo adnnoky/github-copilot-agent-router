@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { closeDiffEditor } from "./tools";
+import { selectModel } from "./models";
 
 export const AGENT_TOOL_PREFIX = "agent-router_";
 export const MAX_TOOL_ROUNDS = 15;
@@ -8,6 +9,7 @@ const SYSTEM_PROMPT = `You are an expert software engineering assistant running 
 You have access to tools that let you read, write, edit, and delete files, run terminal commands, search the codebase, list directories, and read VS Code diagnostics.
 
 Guidelines:
+- You DO have authorization to run terminal commands via the provided tools. Do not state that you lack access.
 - Use tools proactively to gather context before making changes.
 - When editing files, always read them first to understand current content and line numbers.
 - After writing or editing files, confirm success by reading them back or checking diagnostics.
@@ -55,13 +57,27 @@ export async function runAgentLoop(
         vscode.LanguageModelChatMessage.User(`${planInstruction}User request: ${userPrompt}`)
     ];
 
+    const hybridMode = vscode.workspace.getConfiguration("agentRouter").get<boolean>("hybridAgentMode", true);
+    let fallbackModel: vscode.LanguageModelChat | undefined;
+
+    if (hybridMode) {
+        const freeSelection = await selectModel("free");
+        // Only use fallback if we successfully got a free model AND the original model wasn't already the free model.
+        if (freeSelection && freeSelection.model.id !== model.id) {
+            fallbackModel = freeSelection.model;
+        }
+    }
+
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         if (token.isCancellationRequested) { break; }
         output.appendLine(`[Agent] Round ${round + 1}/${MAX_TOOL_ROUNDS}`);
 
+        // Use the premium model for round 0 (planning), then switch to the fallback Free model for tool execution.
+        const currentModel = (round > 0 && fallbackModel) ? fallbackModel : model;
+
         let response: vscode.LanguageModelChatResponse;
         try {
-            response = await model.sendRequest(messages, { tools: agentTools }, token);
+            response = await currentModel.sendRequest(messages, { tools: agentTools }, token);
         } catch (e) {
             stream.markdown(`\n\n❌ **Model error:** ${e instanceof Error ? e.message : String(e)}`);
             break;

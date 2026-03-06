@@ -3,9 +3,21 @@ import * as path from "path";
 import * as cp from "child_process";
 import * as https from "https";
 import * as http from "http";
+import * as os from "os";
 import { promisify } from "util";
 
-const exec = promisify(cp.exec);
+const execAsync = promisify(cp.exec);
+
+async function exec(command: string, options: cp.ExecOptions = {}): Promise<{ stdout: string; stderr: string }> {
+    if (os.platform() === "win32" && !options.shell) {
+        options.shell = "powershell.exe";
+    }
+    const result = await execAsync(command, options);
+    return {
+        stdout: typeof result.stdout === "string" ? result.stdout : result.stdout.toString(),
+        stderr: typeof result.stderr === "string" ? result.stderr : result.stderr.toString()
+    };
+}
 const MAX_READ_CHARS = 100_000;
 const MAX_SEARCH_RESULTS = 30;
 

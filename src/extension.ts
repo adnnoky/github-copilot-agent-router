@@ -251,7 +251,7 @@ async function handleBoostCommand(
     throw new Error("No model available to boost prompt.");
   }
 
-  const systemMessage = "You are an expert prompt engineer. Your task is to take a short, simple user prompt and expand it into a highly detailed, comprehensive prompt suitable for an expert AI programming assistant. If the user prompt references previous conversation (like 'give me the same for X' or 'what about Y'), you MUST incorporate that context into the new detailed prompt so it stands alone. Ensure the resulting prompt is specific, actionable, and covers potential edge cases or architectural considerations. Output ONLY the expanded prompt, without any conversational filler or code formatting wrappers.";
+  const systemMessage = "You are an expert prompt engineer. Your task is to take a short, simple user prompt and expand it into a highly detailed, comprehensive prompt suitable for an expert AI programming assistant. If the user prompt references previous conversation (like 'give me the same for X' or 'what about Y'), you MUST incorporate that context into the new detailed prompt so it stands alone. Ensure the resulting prompt is specific, actionable, and covers potential edge cases or architectural considerations. Output ONLY the expanded prompt, without any conversational filler or code formatting wrappers. IMPORTANT: Keep the final output under 800 characters, and use frequent paragraph breaks or bullet points. Do NOT output a single massive line of text.";
 
   const messages = [
     vscode.LanguageModelChatMessage.User(systemMessage),
