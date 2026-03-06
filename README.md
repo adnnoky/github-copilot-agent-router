@@ -2,7 +2,7 @@
 
 > **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
-[![Version](https://img.shields.io/badge/version-1.9.0-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
+[![Version](https://img.shields.io/badge/version-1.9.3-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.95.0-blueviolet)](https://code.visualstudio.com/)
 
@@ -103,18 +103,24 @@ Starting with v1.8.0, **all** model requests — routing, agentic tool loops, si
 
 ---
 
-## Configuration
+### Configuration
 
 | Setting | Type | Default | Description |
 |---|---|---|---|
-| `agentRouter.freeThreshold` | `number` | `90` | Complexity score (0–100). Scores ≤ this go to a free model. |
-| `agentRouter.agentMode` | `boolean` | `true` | Enable/disable the full agentic tool-calling loop. |
+| `agentRouter.freeThreshold` | `number` | `90` | Complexity score threshold (0-100). Scores ≤ this go to a free model. |
+| `agentRouter.agentMode` | `boolean` | `true` | Enable/disable agentic tool access (file editing, terminal, etc). |
+| `agentRouter.hybridAgentMode` | `boolean` | `true` | When using a premium model, automatically switch to a free model for intermediate agent tool calls to save premium request quota. |
+| `agentRouter.allowGitCommands` | `boolean` | `false` | (Beta) Allow the agent to automatically commit and push changes. |
 
 Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
+## 🛠️ How it matches models
+
 ### Free Model Families
 
-`gpt-5-mini`, `gpt-4o`, `gpt-4.1`
+`gpt-4o`, `gpt-5-mini`, `gpt-4.1`
+
+### Premium Model Families
 
 All other available Copilot models (e.g. `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex`) are treated as **premium**.
 
@@ -155,6 +161,13 @@ When `agentRouter.agentMode` is `true`, `@router` can call these tools during th
 | **Clipboard** | `clipboardRead`, `clipboardWrite` |
 | **Network** | `fetchUrl` |
 
+### Terminal Execution: Headless vs Visible
+The agent interacts with your terminal in two different ways depending on how you phrase your prompt:
+
+1. **Headless Execution (Default):** If you ask the agent to *"run my tests and fix the failure"*, it will execute the command headlessly in the background. The agent uses this when it needs to read the text output (like error stack traces) to analyze and fix your code. You won't see this in your normal terminal tabs, but the command output is visible in the Chat panel dropdowns.
+2. **Visible Terminal Execution:** If you just want the agent to start a long-running process (like starting a server) in a visible VS Code terminal panel so you can see the logs, you can tell it to use the `openTerminal` tool. 
+   - **Targeting specific terminals:** If you already have terminals open named **"wsl"** or **"powershell"**, you can explicitly tell the agent: *"Open my **'wsl'** terminal and run `npm start`"*. The agent will find the existing tab by name and type the command directly into it.
+
 ---
 
 ## Development
@@ -172,7 +185,7 @@ npm run watch     # watch mode
 # Package for distribution
 npx vsce package
 # Install locally
-code --install-extension agent-router-extension-1.9.0.vsix
+code --install-extension agent-router-extension-1.9.3.vsix
 ```
 
 ---
