@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.9.4] — 2026-03-09
+
+### Added
+- Added a confirmation dialogue to the `openTerminal` tool (`agent-router_openTerminal`) so it requires user approval before opening a visible terminal and executing a command.
+
+### Changed
+- Updated `README.md` and tool descriptions to clarify the distinction between Headless execution (`runCommand`) and Visible execution (`openTerminal`), advising against blind terminal use for tasks like building or testing.
+- Reverted the strict character limit constraints on the `@router /boost` internal prompt.
+
+---
+
 ## [1.9.3] — 2026-03-06
 
 ### Fixed

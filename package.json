@@ -2,7 +2,7 @@
   "name": "agent-router-extension",
   "displayName": "Agent Router",
   "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "publisher": "adnanokay",
   "author": "Adnan Okay",
   "icon": "images/icon.png",
@@ -208,8 +208,8 @@
           "execute",
           "terminal"
         ],
-        "displayName": "Run Terminal Command",
-        "modelDescription": "Execute an arbitrary shell command and return its stdout and stderr. Use this to run build tools, tests, linters, package managers, git commands, etc. Commands run in the workspace root by default.",
+        "displayName": "Run Command / Wait for Output",
+        "modelDescription": "Run a shell command headlessly and WAIT for it to finish to capture stdout/stderr. ALWAYS use this tool (instead of openTerminal) when running builds, tests, installations, or scripts where you need to verify success or fix errors. This tool lets you read the output and retry if it fails. Commands run in the workspace root by default.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -788,7 +788,7 @@
           "terminal"
         ],
         "displayName": "Open Terminal",
-        "modelDescription": "Open (or reuse) a named terminal panel in VS Code. Optionally send an initial command to it.",
+        "modelDescription": "Open (or reuse) a named terminal panel in VS Code and optionally send a command. VERY IMPORTANT: This is a BLIND fire-and-forget tool. You CANNOT see the output, you CANNOT wait for it to finish, and you CANNOT fix errors. ONLY use this for long-running dev servers (e.g., npm run dev) or if the user explicitly demands a visible terminal. For building docker images, running tests, or installing packages, use getTerminalOutput instead.",
         "inputSchema": {
           "type": "object",
           "properties": {
