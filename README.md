@@ -162,11 +162,11 @@ When `agentRouter.agentMode` is `true`, `@router` can call these tools during th
 | **Network** | `fetchUrl` |
 
 ### Terminal Execution: Headless vs Visible
-The agent interacts with your terminal in two different ways depending on how you phrase your prompt:
 
-1. **Headless Execution (Default):** If you ask the agent to *"run my tests and fix the failure"*, it will execute the command headlessly in the background. The agent uses this when it needs to read the text output (like error stack traces) to analyze and fix your code. You won't see this in your normal terminal tabs, but the command output is visible in the Chat panel dropdowns.
-2. **Visible Terminal Execution:** If you just want the agent to start a long-running process (like starting a server) in a visible VS Code terminal panel so you can see the logs, you can tell it to use the `openTerminal` tool. 
-   - **Targeting specific terminals:** If you already have terminals open named **"wsl"** or **"powershell"**, you can explicitly tell the agent: *"Open my **'wsl'** terminal and run `npm start`"*. The agent will find the existing tab by name and type the command directly into it.
+The agent possesses two distinct tools for running terminal commands:
+
+1. **Headless Execution (`runCommand`)**: By default, when you ask the agent to run scripts, build apps, or fix errors, the agent runs the command headlessly in the background. **This is highly recommended** because it forces the agent to *wait* for the command to finish, read the resulting `stdout`/`stderr`, and intelligently fix any errors if it fails. You can view the logs for these headless commands by expanding the tool calls in the Chat panel.
+2. **Visible Execution (`openTerminal`)**: You can explicitly ask the agent to "run this in a visible terminal panel" (or specify a tab name like "wsl" or "powershell"). The agent will open a VS Code terminal and paste the command. **Warning:** This is a blind, fire-and-forget action. The agent cannot see the output and cannot wait for it to finish. Use this only for infinite-running dev servers (e.g., `npm run dev`) or when you just want to take over manually.
 
 ---
 

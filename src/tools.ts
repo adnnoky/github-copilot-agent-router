@@ -992,6 +992,23 @@ export class ShowNotificationTool implements vscode.LanguageModelTool<ShowNotifi
 interface OpenTerminalInput { name?: string; command?: string; }
 
 export class OpenTerminalTool implements vscode.LanguageModelTool<OpenTerminalInput> {
+    async prepareInvocation(
+        options: vscode.LanguageModelToolInvocationPrepareOptions<OpenTerminalInput>,
+        _token: vscode.CancellationToken
+    ): Promise<vscode.PreparedToolInvocation> {
+        return {
+            invocationMessage: `Opening terminal "${options.input.name ?? 'Agent Terminal'}"`,
+            confirmationMessages: {
+                title: `Open terminal?`,
+                message: new vscode.MarkdownString(
+                    options.input.command
+                        ? `Open terminal **\`${options.input.name ?? 'Agent Terminal'}\`** and run:\n\n\`\`\`bash\n${options.input.command}\n\`\`\``
+                        : `Open terminal **\`${options.input.name ?? 'Agent Terminal'}\`** without sending any commands?`
+                )
+            }
+        };
+    }
+
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<OpenTerminalInput>,
         _token: vscode.CancellationToken
