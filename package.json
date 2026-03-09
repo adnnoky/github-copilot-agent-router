@@ -788,7 +788,7 @@
           "terminal"
         ],
         "displayName": "Open Terminal",
-        "modelDescription": "Open (or reuse) a named terminal panel in VS Code and optionally send a command. VERY IMPORTANT: This is a BLIND fire-and-forget tool. You CANNOT see the output, you CANNOT wait for it to finish, and you CANNOT fix errors. ONLY use this for long-running dev servers (e.g., npm run dev) or if the user explicitly demands a visible terminal. For building docker images, running tests, or installing packages, use getTerminalOutput instead.",
+        "modelDescription": "Open (or reuse) a named terminal panel in VS Code and optionally send a command. VERY IMPORTANT: This is a BLIND fire-and-forget tool. You CANNOT see the output, you CANNOT wait for it to finish, and you CANNOT fix errors. ONLY use this for long-running dev servers (e.g., npm run dev) or if the user explicitly demands a visible terminal. For building docker images, running tests, or installing packages, use runCommand instead so you can capture output and handle errors.",
         "inputSchema": {
           "type": "object",
           "properties": {
