@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.1.0] — 2026-04-06
+
+### Added
+- **Copilot Usage Dashboard**: Added a comprehensive dashboard to visualize premium request usage, quota status, and historical data interactively within the IDE.
+- **Premium Status Bar Indicator**: Integrated a new dynamic status bar displaying the exact number of remaining premium requests and a progress percentage.
+
+---
+
 ## [1.9.4] — 2026-03-09
 
 ### Added

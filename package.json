@@ -2,7 +2,7 @@
   "name": "agent-router-extension",
   "displayName": "Agent Router",
   "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.9.4",
+  "version": "1.1.0",
   "publisher": "adnanokay",
   "author": "Adnan Okay",
   "icon": "images/icon.png",
@@ -840,6 +840,13 @@
         }
       }
     ],
+    "commands": [
+      {
+        "command": "agentRouter.showPremiumStats",
+        "title": "Agent Router: Show Premium Stats",
+        "category": "Agent Router"
+      }
+    ],
     "configuration": {
       "title": "Agent Router",
       "properties": {
@@ -859,6 +866,12 @@
           "type": "boolean",
           "default": true,
           "description": "When enabled, @router uses the full agentic loop with tool-calling (file edits, terminal commands, etc.). When disabled, it routes and answers without tools."
+        },
+        "agentRouter.usageRefreshInterval": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "description": "How often (in seconds) to refresh premium request usage data from the GitHub Copilot API."
         }
       }
     }
