@@ -105,11 +105,12 @@ Starting with v1.8.0, **all** model requests — routing, agentic tool loops, si
 
 ## Premium Quota & Dashboard 📊
 
-Agent Router makes a best-effort attempt to track your **Premium Request limits** using an internal/undocumented GitHub Copilot endpoint. Because this endpoint is not a public, stable API, it may change or become unavailable without notice.
+Agent Router makes a best-effort attempt to track your **Premium Request limits** using an internal/undocumented GitHub Copilot endpoint. This is **not** an official, supported public API, so it may change, become unavailable, or be inaccessible for some accounts without notice.
 
 - **Status Bar Indicator**: View your remaining premium request count and dynamic capacity percentage conveniently in the VS Code status bar when quota data is available.
 - **Copilot Usage Dashboard**: Click the status bar or run `Agent Router: Show Premium Stats` to open the interactive dashboard for detailed metrics, historical session logs, and exact quota reset timelines when available.
-- **Fallback behavior**: If the quota endpoint becomes unavailable or its response format changes, premium-usage stats may be unavailable or stale, but prompt routing and chat functionality will continue to work.
+- **Expected failure modes**: Depending on your account, Copilot plan, authentication state, token scopes, GitHub backend changes, rate limits, or response-format changes, premium-usage data may be missing, partial, stale, or fail to load entirely.
+- **Fallback behavior**: If quota data cannot be retrieved, Agent Router will continue to route prompts and provide chat/agent functionality as normal; only the premium-usage indicator/dashboard may be degraded or unavailable.
 
 ---
 
