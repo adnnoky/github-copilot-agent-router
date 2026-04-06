@@ -186,7 +186,7 @@ async function fetchCopilotUsage(context: vscode.ExtensionContext): Promise<Copi
 }
 
 function buildProgressBar(percent: number, length: number): string {
-  const filled = Math.round((percent / 100) * length);
+  const filled = Math.max(0, Math.min(length, Math.round((percent / 100) * length)));
   const empty = length - filled;
   return "█".repeat(filled) + "░".repeat(empty);
 }
