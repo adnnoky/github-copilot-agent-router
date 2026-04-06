@@ -2,7 +2,7 @@
 
 > **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
-[![Version](https://img.shields.io/badge/version-1.9.3-blue)](https://github.com/adnnoky/github-copilot-agent-router/releases)
+[![Version](https://img.shields.io/github/v/release/adnnoky/github-copilot-agent-router?label=version)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.95.0-blueviolet)](https://code.visualstudio.com/)
 
@@ -100,6 +100,17 @@ Starting with v1.8.0, **all** model requests — routing, agentic tool loops, si
 **Context-length note:** Each prior turn adds tokens to the request. Very long conversations may approach a model's context window limit. If you notice slower responses or truncated answers, start a new chat session to reset the history.
 
 **Privacy note:** Conversation history is passed to the selected Copilot model (the same model that already handles your prompt). No history is stored or sent anywhere outside of the active Copilot session.
+
+---
+
+## Premium Quota & Dashboard 📊
+
+Agent Router makes a best-effort attempt to track your **Premium Request limits** using an internal/undocumented GitHub Copilot endpoint. This is **not** an official, supported public API, so it may change, become unavailable, or be inaccessible for some accounts without notice.
+
+- **Status Bar Indicator**: View your remaining premium request count and dynamic capacity percentage conveniently in the VS Code status bar when quota data is available.
+- **Copilot Usage Dashboard**: Click the status bar or run `Agent Router: Show Premium Stats` to open the interactive dashboard for detailed metrics, historical session logs, and exact quota reset timelines when available.
+- **Expected failure modes**: Depending on your account, Copilot plan, authentication state, token scopes, GitHub backend changes, rate limits, or response-format changes, premium-usage data may be missing, partial, stale, or fail to load entirely.
+- **Fallback behavior**: If quota data cannot be retrieved, Agent Router will continue to route prompts and provide chat/agent functionality as normal; only the premium-usage indicator/dashboard may be degraded or unavailable.
 
 ---
 

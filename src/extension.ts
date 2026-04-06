@@ -3,6 +3,7 @@ import { scorePromptComplexity } from "./scorer";
 import { getRoutingDecision } from "./router";
 import { selectModel, selectModelByName, listAvailableModels, FREE_MODEL_FAMILIES } from "./models";
 import { runAgentLoop } from "./agent";
+import { openDashboard, addSession, updateSessionStatus, AgentSession } from "./dashboard";
 import {
   ReadFileTool,
   WriteFileTool,
@@ -48,6 +49,214 @@ function getFreeThreshold(): number {
 
 function isAgentModeEnabled(): boolean {
   return vscode.workspace.getConfiguration("agentRouter").get<boolean>("agentMode", true);
+}
+
+// ── Premium Quota Tracker (GitHub Copilot API) ────────────────────────────
+
+interface QuotaSnapshot {
+  entitlement: number;
+  overage_count: number;
+  overage_permitted: boolean;
+  percent_remaining: number;
+  quota_id: string;
+  quota_remaining: number;
+  remaining: number;
+  unlimited: boolean;
+  timestamp_utc: string;
+}
+
+interface CopilotApiResponse {
+  login: string;
+  copilot_plan: string;
+  quota_reset_date: string;
+  quota_reset_date_utc: string;
+  quota_snapshots: {
+    chat: QuotaSnapshot;
+    completions: QuotaSnapshot;
+    premium_interactions: QuotaSnapshot;
+  };
+}
+
+interface CopilotUsageData {
+  used: number;
+  entitlement: number;
+  remaining: number;
+  percentUsed: number;
+  resetDate: string;
+  unlimited: boolean;
+}
+
+const COPILOT_CACHE_KEY = "agentRouter.copilotUsageCache";
+const COPILOT_CACHE_VERSION = "1.0";
+
+interface CopilotCacheData {
+  version: string;
+  timestamp: number;
+  data: CopilotApiResponse;
+}
+
+let premiumLimitStatusBarItem: vscode.StatusBarItem;
+let usageRefreshInterval: ReturnType<typeof setInterval> | undefined;
+
+function getRefreshIntervalMs(): number {
+  return vscode.workspace.getConfiguration("agentRouter").get<number>("usageRefreshInterval", 60) * 1000;
+}
+
+function getCopilotCache(context: vscode.ExtensionContext): CopilotCacheData | null {
+  const cache = context.globalState.get<CopilotCacheData>(COPILOT_CACHE_KEY);
+  if (!cache || cache.version !== COPILOT_CACHE_VERSION) { return null; }
+  return cache;
+}
+
+function setCopilotCache(context: vscode.ExtensionContext, data: CopilotApiResponse): void {
+  context.globalState.update(COPILOT_CACHE_KEY, {
+    version: COPILOT_CACHE_VERSION,
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+function isCopilotCacheValid(cache: CopilotCacheData | null): boolean {
+  if (!cache) { return false; }
+  return Date.now() - cache.timestamp < getRefreshIntervalMs();
+}
+
+function extractUsageData(data: CopilotApiResponse): CopilotUsageData | null {
+  const premium = data.quota_snapshots?.premium_interactions;
+  if (!premium) { return null; }
+  if (premium.unlimited) {
+    return { used: 0, entitlement: 0, remaining: 0, percentUsed: 0, resetDate: data.quota_reset_date ?? "", unlimited: true };
+  }
+  if (premium.entitlement === 0) { return null; }
+
+  let used: number;
+  let percentUsed: number;
+  if (premium.percent_remaining !== undefined && !Number.isNaN(premium.percent_remaining)) {
+    percentUsed = Math.round((100 - premium.percent_remaining) * 10) / 10;
+    used = Math.round((percentUsed / 100) * premium.entitlement);
+  } else {
+    used = premium.entitlement - premium.quota_remaining;
+    percentUsed = Math.round((used / premium.entitlement) * 1000) / 10;
+  }
+
+  return {
+    used,
+    entitlement: premium.entitlement,
+    remaining: premium.quota_remaining,
+    percentUsed,
+    resetDate: data.quota_reset_date ?? "",
+    unlimited: false,
+  };
+}
+
+async function fetchCopilotUsageFromApi(silent = false): Promise<CopilotApiResponse | null> {
+  try {
+    const session = await vscode.authentication.getSession(
+      "github",
+      ["user:email"],
+      silent ? { silent: true } : { createIfNone: true }
+    );
+    if (!session) { return null; }
+
+    const response = await fetch("https://api.github.com/copilot_internal/user", {
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+        "User-Agent": "VSCode-AgentRouter-Extension",
+      },
+    });
+
+    if (!response.ok) { return null; }
+    return await response.json() as CopilotApiResponse;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCopilotUsage(context: vscode.ExtensionContext, silent = false): Promise<CopilotUsageData | null> {
+  const cache = getCopilotCache(context);
+  if (cache && isCopilotCacheValid(cache)) {
+    return extractUsageData(cache.data);
+  }
+
+  const apiData = await fetchCopilotUsageFromApi(silent);
+  if (apiData) {
+    setCopilotCache(context, apiData);
+    return extractUsageData(apiData);
+  }
+
+  // Fallback to expired cache
+  if (cache) { return extractUsageData(cache.data); }
+  return null;
+}
+
+function buildProgressBar(percent: number, length: number): string {
+  const filled = Math.max(0, Math.min(length, Math.round((percent / 100) * length)));
+  const empty = length - filled;
+  return "█".repeat(filled) + "░".repeat(empty);
+}
+
+async function updatePremiumStatusBar(context: vscode.ExtensionContext, silent = false) {
+  if (!premiumLimitStatusBarItem) {
+    premiumLimitStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    premiumLimitStatusBarItem.command = "agentRouter.showPremiumStats";
+  }
+
+  const usage = await fetchCopilotUsage(context, silent);
+
+  if (!usage) {
+    premiumLimitStatusBarItem.text = "$(copilot) Premium: —";
+    premiumLimitStatusBarItem.tooltip = new vscode.MarkdownString(
+      `$(warning) **Unable to fetch usage data**\n\nMake sure you are signed in to GitHub.\n\n_Click to retry._`,
+      true
+    );
+    premiumLimitStatusBarItem.tooltip.isTrusted = true;
+    premiumLimitStatusBarItem.backgroundColor = undefined;
+  } else if (usage.unlimited) {
+    premiumLimitStatusBarItem.text = "$(copilot) Premium: ∞";
+    premiumLimitStatusBarItem.tooltip = new vscode.MarkdownString(
+      `$(rocket) **Unlimited Premium Plan**\n\n| | |\n|---|---|\n| Plan | Unlimited |\n| Overage | N/A |`,
+      true
+    );
+    premiumLimitStatusBarItem.tooltip.isTrusted = true;
+    premiumLimitStatusBarItem.backgroundColor = undefined;
+  } else {
+    const bar = buildProgressBar(usage.percentUsed, 8);
+    const percentRemaining = Math.round((100 - usage.percentUsed) * 10) / 10;
+    premiumLimitStatusBarItem.text = `$(copilot) ${bar} ${usage.remaining} (${percentRemaining}%)`;
+
+    const tooltipBar = buildProgressBar(usage.percentUsed, 20);
+    const resetFormatted = usage.resetDate || "Unknown";
+    const statusIcon = usage.remaining === 0 ? "$(error)" : usage.remaining <= 5 ? "$(warning)" : "$(check)";
+
+    const md = new vscode.MarkdownString(
+      `$(github-copilot) **Copilot Premium Requests**\n\n` +
+      `\`${tooltipBar}\` **${usage.percentUsed}%** used\n\n` +
+      `---\n\n` +
+      `| | |\n|---|---|\n` +
+      `| ${statusIcon} Remaining | **${usage.remaining}** requests |\n` +
+      `| $(graph) Used | **${usage.used}** / ${usage.entitlement} |\n` +
+      `| $(calendar) Resets | ${resetFormatted} |\n\n` +
+      `_Click for details_`,
+      true
+    );
+    md.isTrusted = true;
+    premiumLimitStatusBarItem.tooltip = md;
+
+    if (usage.remaining === 0) {
+      premiumLimitStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+    } else if (usage.remaining <= 5) {
+      premiumLimitStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+    } else {
+      premiumLimitStatusBarItem.backgroundColor = undefined;
+    }
+  }
+
+  premiumLimitStatusBarItem.show();
+}
+
+function startUsageRefreshInterval(context: vscode.ExtensionContext) {
+  if (usageRefreshInterval !== undefined) { clearInterval(usageRefreshInterval); }
+  usageRefreshInterval = setInterval(() => updatePremiumStatusBar(context, true), getRefreshIntervalMs());
 }
 
 // ── Resolve chat references (attached files, selections, etc.) ────────────
@@ -278,7 +487,8 @@ async function routerHandler(
   chatContext: vscode.ChatContext,
   stream: vscode.ChatResponseStream,
   token: vscode.CancellationToken,
-  output: vscode.OutputChannel
+  output: vscode.OutputChannel,
+  context: vscode.ExtensionContext
 ): Promise<void> {
   if (request.command === "explain") {
     await handleExplainCommand(request, stream, output);
@@ -428,6 +638,23 @@ async function routerHandler(
   }
 
   // 4. Agentic loop (if enabled) or simple single request
+
+  // Record agent session
+  const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const session: AgentSession = {
+    id: sessionId,
+    prompt: prompt.slice(0, 200),
+    model: selection.model.family,
+    tier: selection.tier,
+    score: complexity.score,
+    agentMode,
+    boosted: isBoostRequested,
+    timestamp: Date.now(),
+    status: "running",
+  };
+  addSession(context, session);
+
+  try {
   if (agentMode) {
     const isComplex = decision.tier === "premium";
     await runAgentLoop(
@@ -456,6 +683,7 @@ async function routerHandler(
       const msg = e instanceof Error ? e.message : String(e);
       output.appendLine(`[Error] ${msg}`);
       stream.markdown(`❌ **Failed:** ${msg}`);
+      updateSessionStatus(context, sessionId, "error");
       return;
     }
 
@@ -467,6 +695,17 @@ async function routerHandler(
     } catch (e) {
       stream.markdown(`\n\n⚠️ _Stream interrupted: ${e instanceof Error ? e.message : String(e)}_`);
     }
+  }
+
+  updateSessionStatus(context, sessionId, "completed");
+  } catch (e) {
+    updateSessionStatus(context, sessionId, "error");
+    throw e;
+  }
+
+  // Refresh the status bar after a premium request so it reflects API-side usage
+  if (selection.tier === "premium") {
+    updatePremiumStatusBar(context, true);
   }
 }
 
@@ -516,11 +755,31 @@ export function activate(context: vscode.ExtensionContext) {
   const participant = vscode.chat.createChatParticipant(
     PARTICIPANT_ID,
     (request, chatContext, stream, token) =>
-      routerHandler(request, chatContext, stream, token, output)
+      routerHandler(request, chatContext, stream, token, output, context)
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.showPremiumStats", async () => {
+      openDashboard(
+        context,
+        () => fetchCopilotUsage(context, false),
+        () => fetchCopilotUsageFromApi(false)
+      );
+    })
+  );
+
+  updatePremiumStatusBar(context, true);
+  startUsageRefreshInterval(context);
+
   participant.iconPath = new vscode.ThemeIcon("radio-tower");
-  context.subscriptions.push(participant, output);
+  context.subscriptions.push(
+    participant,
+    output,
+    { dispose: () => { if (usageRefreshInterval !== undefined) { clearInterval(usageRefreshInterval); } } }
+  );
+  if (premiumLimitStatusBarItem) {
+    context.subscriptions.push(premiumLimitStatusBarItem);
+  }
 }
 
 export function deactivate() {
