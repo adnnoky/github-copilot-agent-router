@@ -149,9 +149,13 @@ function extractUsageData(data: CopilotApiResponse): CopilotUsageData | null {
   };
 }
 
-async function fetchCopilotUsageFromApi(): Promise<CopilotApiResponse | null> {
+async function fetchCopilotUsageFromApi(silent = false): Promise<CopilotApiResponse | null> {
   try {
-    const session = await vscode.authentication.getSession("github", ["user:email"], { createIfNone: true });
+    const session = await vscode.authentication.getSession(
+      "github",
+      ["user:email"],
+      silent ? { silent: true } : { createIfNone: true }
+    );
     if (!session) { return null; }
 
     const response = await fetch("https://api.github.com/copilot_internal/user", {
@@ -168,13 +172,13 @@ async function fetchCopilotUsageFromApi(): Promise<CopilotApiResponse | null> {
   }
 }
 
-async function fetchCopilotUsage(context: vscode.ExtensionContext): Promise<CopilotUsageData | null> {
+async function fetchCopilotUsage(context: vscode.ExtensionContext, silent = false): Promise<CopilotUsageData | null> {
   const cache = getCopilotCache(context);
   if (cache && isCopilotCacheValid(cache)) {
     return extractUsageData(cache.data);
   }
 
-  const apiData = await fetchCopilotUsageFromApi();
+  const apiData = await fetchCopilotUsageFromApi(silent);
   if (apiData) {
     setCopilotCache(context, apiData);
     return extractUsageData(apiData);
@@ -191,13 +195,13 @@ function buildProgressBar(percent: number, length: number): string {
   return "█".repeat(filled) + "░".repeat(empty);
 }
 
-async function updatePremiumStatusBar(context: vscode.ExtensionContext) {
+async function updatePremiumStatusBar(context: vscode.ExtensionContext, silent = false) {
   if (!premiumLimitStatusBarItem) {
     premiumLimitStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     premiumLimitStatusBarItem.command = "agentRouter.showPremiumStats";
   }
 
-  const usage = await fetchCopilotUsage(context);
+  const usage = await fetchCopilotUsage(context, silent);
 
   if (!usage) {
     premiumLimitStatusBarItem.text = "$(copilot) Premium: —";
@@ -252,7 +256,7 @@ async function updatePremiumStatusBar(context: vscode.ExtensionContext) {
 
 function startUsageRefreshInterval(context: vscode.ExtensionContext) {
   if (usageRefreshInterval !== undefined) { clearInterval(usageRefreshInterval); }
-  usageRefreshInterval = setInterval(() => updatePremiumStatusBar(context), getRefreshIntervalMs());
+  usageRefreshInterval = setInterval(() => updatePremiumStatusBar(context, true), getRefreshIntervalMs());
 }
 
 // ── Resolve chat references (attached files, selections, etc.) ────────────
@@ -701,7 +705,7 @@ async function routerHandler(
 
   // Refresh the status bar after a premium request so it reflects API-side usage
   if (selection.tier === "premium") {
-    updatePremiumStatusBar(context);
+    updatePremiumStatusBar(context, true);
   }
 }
 
@@ -758,13 +762,13 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("agentRouter.showPremiumStats", async () => {
       openDashboard(
         context,
-        () => fetchCopilotUsage(context),
-        () => fetchCopilotUsageFromApi()
+        () => fetchCopilotUsage(context, false),
+        () => fetchCopilotUsageFromApi(false)
       );
     })
   );
 
-  updatePremiumStatusBar(context);
+  updatePremiumStatusBar(context, true);
   startUsageRefreshInterval(context);
 
   participant.iconPath = new vscode.ThemeIcon("radio-tower");
