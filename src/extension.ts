@@ -103,7 +103,8 @@ function getRefreshIntervalMs(): number {
 }
 
 function getGitHubEnterpriseUrl(): string {
-  return vscode.workspace.getConfiguration("agentRouter").get<string>("githubEnterpriseUrl", "").replace(/\/+$/, "");
+  const raw = vscode.workspace.getConfiguration("agentRouter").get<string>("githubEnterpriseUrl") ?? "";
+  return raw.trim().replace(/\/+$/, "");
 }
 
 /**
