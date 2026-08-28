@@ -53,6 +53,7 @@ ext install local.agent-router-extension
 - VS Code `^1.95.0`
 - [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) extension installed & active
 - Active GitHub Copilot subscription (for premium model access)
+- **GitHub Enterprise users:** Set `agentRouter.githubEnterpriseUrl` to your enterprise URL (e.g. `https://company.ghe.com`) in VS Code settings
 
 ---
 
@@ -122,6 +123,7 @@ Agent Router makes a best-effort attempt to track your **Premium Request limits*
 | `agentRouter.agentMode` | `boolean` | `true` | Enable/disable agentic tool access (file editing, terminal, etc). |
 | `agentRouter.hybridAgentMode` | `boolean` | `true` | When using a premium model, automatically switch to a free model for intermediate agent tool calls to save premium request quota. |
 | `agentRouter.allowGitCommands` | `boolean` | `false` | (Beta) Allow the agent to automatically commit and push changes. |
+| `agentRouter.githubEnterpriseUrl` | `string` | `""` | Base URL for GitHub Enterprise (e.g. `https://company.ghe.com`). Enables authentication via the enterprise provider alongside github.com. |
 
 Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
