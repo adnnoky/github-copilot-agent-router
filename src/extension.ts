@@ -102,6 +102,52 @@ function getRefreshIntervalMs(): number {
   return vscode.workspace.getConfiguration("agentRouter").get<number>("usageRefreshInterval", 60) * 1000;
 }
 
+function getGitHubEnterpriseUrl(): string {
+  return vscode.workspace.getConfiguration("agentRouter").get<string>("githubEnterpriseUrl", "").replace(/\/+$/, "");
+}
+
+/**
+ * Resolves the GitHub auth session by trying both providers.
+ * If an enterprise URL is configured, tries "github-enterprise" first, then falls back to "github".
+ * Returns the session and the API base URL to use.
+ */
+async function resolveGitHubSession(silent: boolean): Promise<{ session: vscode.AuthenticationSession; apiBaseUrl: string } | null> {
+  const enterpriseUrl = getGitHubEnterpriseUrl();
+  const sessionOptions = silent ? { silent: true } : { createIfNone: true };
+
+  // If enterprise URL is configured, try enterprise provider first
+  if (enterpriseUrl) {
+    try {
+      const session = await vscode.authentication.getSession(
+        "github-enterprise",
+        ["user:email"],
+        sessionOptions
+      );
+      if (session) {
+        return { session, apiBaseUrl: `${enterpriseUrl}/api/v3` };
+      }
+    } catch {
+      // Enterprise auth failed, fall through to github.com
+    }
+  }
+
+  // Try standard github.com provider
+  try {
+    const session = await vscode.authentication.getSession(
+      "github",
+      ["user:email"],
+      sessionOptions
+    );
+    if (session) {
+      return { session, apiBaseUrl: "https://api.github.com" };
+    }
+  } catch {
+    // github.com auth failed
+  }
+
+  return null;
+}
+
 function getCopilotCache(context: vscode.ExtensionContext): CopilotCacheData | null {
   const cache = context.globalState.get<CopilotCacheData>(COPILOT_CACHE_KEY);
   if (!cache || cache.version !== COPILOT_CACHE_VERSION) { return null; }
@@ -151,16 +197,12 @@ function extractUsageData(data: CopilotApiResponse): CopilotUsageData | null {
 
 async function fetchCopilotUsageFromApi(silent = false): Promise<CopilotApiResponse | null> {
   try {
-    const session = await vscode.authentication.getSession(
-      "github",
-      ["user:email"],
-      silent ? { silent: true } : { createIfNone: true }
-    );
-    if (!session) { return null; }
+    const resolved = await resolveGitHubSession(silent);
+    if (!resolved) { return null; }
 
-    const response = await fetch("https://api.github.com/copilot_internal/user", {
+    const response = await fetch(`${resolved.apiBaseUrl}/copilot_internal/user`, {
       headers: {
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${resolved.session.accessToken}`,
         "User-Agent": "VSCode-AgentRouter-Extension",
       },
     });

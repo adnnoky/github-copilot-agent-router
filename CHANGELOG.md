@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.10.1] — 2026-08-28
+
+### Added
+- **GitHub Enterprise Support**: Authentication now supports both `github.com` and GitHub Enterprise (`company.ghe.com`). Set `agentRouter.githubEnterpriseUrl` in settings to enable enterprise login. The extension tries the enterprise provider first, then falls back to github.com.
+
+---
+
 ## [1.10.0] — 2026-04-06
 
 ### Added

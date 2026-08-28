@@ -2,7 +2,7 @@
   "name": "agent-router-extension",
   "displayName": "Agent Router",
   "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "publisher": "adnanokay",
   "author": "Adnan Okay",
   "icon": "images/icon.png",
@@ -872,6 +872,11 @@
           "default": 60,
           "minimum": 10,
           "description": "How often (in seconds) to refresh premium request usage data from the GitHub Copilot API."
+        },
+        "agentRouter.githubEnterpriseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for GitHub Enterprise (e.g. https://company.ghe.com). When set, the extension will also attempt to authenticate via the GitHub Enterprise provider. Leave empty to use github.com only."
         }
       }
     }
