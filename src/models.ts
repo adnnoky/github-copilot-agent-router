@@ -1,24 +1,57 @@
 import * as vscode from "vscode";
 
 /**
- * Model families considered "free" tier, in descending preference order.
- * Any model family NOT listed here is treated as premium.
+ * Model cost multipliers — determines how many premium requests each model consumes.
+ * Lower multiplier = cheaper. Models not listed default to 1x.
  *
- * Free:    gpt-4o, gpt-5-mini, gpt-4.1
- * Premium: claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex (and any other non-free family)
+ * Standard (1x): gpt-5-mini, gpt-5.6-luna, mai-code-1.1-flash
+ * Advanced (2x+): claude-sonnet-5.0, claude-opus-5.0, gpt-5.3-codex, gpt-5.6-terra
+ *
+ * Updated for model refresh effective 2026-09-01 (WK2636.2)
  */
-export const FREE_MODEL_FAMILIES: readonly string[] = ["gpt-4o", "gpt-5-mini", "gpt-4.1"];
+export const MODEL_COSTS: Readonly<Record<string, number>> = {
+    "gpt-5-mini": 1,
+    "gpt-5.6-luna": 1,
+    "mai-code-1.1-flash": 1,
+    "claude-sonnet-5.0": 2,
+    "gpt-5.6-terra": 2,
+    "gpt-5.3-codex": 3,
+    "claude-opus-5.0": 3,
+};
 
-export type ModelTier = "free" | "premium";
+/** @deprecated Kept for backward compatibility in UI strings */
+export const FREE_MODEL_FAMILIES: readonly string[] = ["gpt-5-mini", "gpt-5.6-luna", "mai-code-1.1-flash"];
+
+export const STANDARD_MODEL_FAMILIES: readonly string[] = ["gpt-5-mini", "gpt-5.6-luna", "mai-code-1.1-flash"];
+export const ADVANCED_MODEL_FAMILIES: readonly string[] = ["claude-sonnet-5.0", "claude-opus-5.0", "gpt-5.3-codex", "gpt-5.6-terra"];
+
+export type ModelTier = "standard" | "advanced";
 
 export interface ModelSelection {
     model: vscode.LanguageModelChat;
     tier: ModelTier;
     family: string;
+    multiplier: number;
 }
 
-function isFreeFamily(family: string): boolean {
-    return FREE_MODEL_FAMILIES.some(
+function getMultiplier(family: string): number {
+    const key = family.toLowerCase().trim();
+    // Exact match first
+    for (const [k, v] of Object.entries(MODEL_COSTS)) {
+        if (k.toLowerCase() === key) { return v; }
+    }
+    // Partial match: strip version numbers and match base name (e.g. "claude-opus-4.6" matches "claude-opus-5.0")
+    const baseKey = key.replace(/[-.]?\d+(\.\d+)?$/, "");
+    for (const [k, v] of Object.entries(MODEL_COSTS)) {
+        const baseK = k.toLowerCase().replace(/[-.]?\d+(\.\d+)?$/, "");
+        if (baseK === baseKey) { return v; }
+    }
+    // Unknown models: if they're in the standard list, 1x; otherwise assume 2x (advanced)
+    return isStandardFamily(family) ? 1 : 2;
+}
+
+function isStandardFamily(family: string): boolean {
+    return STANDARD_MODEL_FAMILIES.some(
         (f) => family.toLowerCase().trim() === f.toLowerCase()
     );
 }
@@ -45,46 +78,46 @@ export async function selectModel(tier: ModelTier): Promise<ModelSelection | und
         return undefined;
     }
 
-    if (tier === "free") {
-        // Try each preferred free family in order
-        for (const family of FREE_MODEL_FAMILIES) {
+    if (tier === "standard") {
+        // Try each preferred standard (1x) family in order
+        for (const family of STANDARD_MODEL_FAMILIES) {
             const match = allModels.find(
                 (m) => m.family.toLowerCase() === family.toLowerCase()
             );
             if (match) {
-                return { model: match, tier: "free", family: match.family };
+                return { model: match, tier: "standard", family: match.family, multiplier: getMultiplier(match.family) };
             }
         }
 
-        // Fallback: any free model if available, else any model
-        const anyFree = allModels.find((m) => isFreeFamily(m.family));
-        if (anyFree) {
-            return { model: anyFree, tier: "free", family: anyFree.family };
+        // Fallback: any standard model if available, else any model
+        const anyStandard = allModels.find((m) => isStandardFamily(m.family));
+        if (anyStandard) {
+            return { model: anyStandard, tier: "standard", family: anyStandard.family, multiplier: getMultiplier(anyStandard.family) };
         }
 
         // Last resort — use whatever is available
         const fallback = allModels[0];
-        return { model: fallback, tier: "free", family: fallback.family };
+        return { model: fallback, tier: "standard", family: fallback.family, multiplier: getMultiplier(fallback.family) };
     }
 
-    // Premium: prioritize claude-sonnet-4.6
-    const preferredPremium = allModels.find(
-        (m) => m.family.toLowerCase() === "claude-sonnet-4.6"
+    // Advanced: prioritize claude-sonnet-5.0
+    const preferredAdvanced = allModels.find(
+        (m) => m.family.toLowerCase() === "claude-sonnet-5.0"
     );
-    if (preferredPremium) {
-        return { model: preferredPremium, tier: "premium", family: preferredPremium.family };
+    if (preferredAdvanced) {
+        return { model: preferredAdvanced, tier: "advanced", family: preferredAdvanced.family, multiplier: getMultiplier(preferredAdvanced.family) };
     }
 
-    // Fallback premium: pick any model that is NOT in the free list
-    const premiumModel = allModels.find((m) => !isFreeFamily(m.family));
-    if (premiumModel) {
-        return { model: premiumModel, tier: "premium", family: premiumModel.family };
+    // Fallback advanced: pick any model that is NOT in the standard list
+    const advancedModel = allModels.find((m) => !isStandardFamily(m.family));
+    if (advancedModel) {
+        return { model: advancedModel, tier: "advanced", family: advancedModel.family, multiplier: getMultiplier(advancedModel.family) };
     }
 
-    // Fallback: if all available models are free-tier (user has no premium),
-    // use the best free model and still mark as "premium intent"
-    const bestFree = allModels[0];
-    return { model: bestFree, tier: "free", family: bestFree.family };
+    // Fallback: if all available models are standard-tier,
+    // use the best standard model
+    const bestStandard = allModels[0];
+    return { model: bestStandard, tier: "standard", family: bestStandard.family, multiplier: getMultiplier(bestStandard.family) };
 }
 
 /**
@@ -114,6 +147,6 @@ export async function selectModelByName(name: string): Promise<ModelSelection | 
 
     if (!match) { return undefined; }
 
-    const tier: ModelTier = isFreeFamily(match.family) ? "free" : "premium";
-    return { model: match, tier, family: match.family };
+    const tier: ModelTier = isStandardFamily(match.family) ? "standard" : "advanced";
+    return { model: match, tier, family: match.family, multiplier: getMultiplier(match.family) };
 }

@@ -1,8 +1,8 @@
 {
   "name": "agent-router-extension",
   "displayName": "Agent Router",
-  "description": "Routes GitHub Copilot chat prompts to free or premium models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
-  "version": "1.10.1",
+  "description": "Routes GitHub Copilot chat prompts to standard (1x) or advanced (2x+) models based on complexity, with full agentic tool support for file editing, terminal commands, and workspace search.",
+  "version": "1.11.0",
   "publisher": "adnanokay",
   "author": "Adnan Okay",
   "icon": "images/icon.png",
@@ -35,7 +35,7 @@
         "id": "agent-router.router",
         "name": "router",
         "fullName": "Agent Router",
-        "description": "Routes prompts to free or premium Copilot models, with full file-edit and terminal capabilities.",
+        "description": "Routes prompts to standard (1x) or advanced (2x+) Copilot models, with full file-edit and terminal capabilities.",
         "isSticky": true,
         "commands": [
           {
@@ -53,32 +53,36 @@
             "sampleRequest": "write a python fast api for user auth"
           },
           {
-            "name": "gpt-4o",
-            "description": "Route this request specifically to the gpt-4o model."
-          },
-          {
-            "name": "gpt-4.1",
-            "description": "Route this request specifically to the gpt-4.1 model."
+            "name": "export",
+            "description": "Export the current chat session (prompts + responses) to a Markdown file in the workspace."
           },
           {
             "name": "gpt-5-mini",
-            "description": "Route this request specifically to the gpt-5-mini model."
+            "description": "Route to gpt-5-mini (1x standard)."
           },
           {
-            "name": "claude-sonnet-4.6",
-            "description": "Route this request specifically to the claude-sonnet-4.6 model."
+            "name": "gpt-5.6-luna",
+            "description": "Route to gpt-5.6-luna (1x standard)."
           },
           {
-            "name": "gemini-3-pro",
-            "description": "Route this request specifically to the gemini-3-pro model."
-          },
-          {
-            "name": "claude-haiku-4.5",
-            "description": "Route this request specifically to the claude-haiku-4.5 model."
+            "name": "gpt-5.6-terra",
+            "description": "Route to gpt-5.6-terra (2x advanced)."
           },
           {
             "name": "gpt-5.3-codex",
-            "description": "Route this request specifically to the gpt-5.3-codex model."
+            "description": "Route to gpt-5.3-codex (3x advanced)."
+          },
+          {
+            "name": "claude-sonnet-5.0",
+            "description": "Route to claude-sonnet-5.0 (2x advanced)."
+          },
+          {
+            "name": "claude-opus-5.0",
+            "description": "Route to claude-opus-5.0 (3x advanced)."
+          },
+          {
+            "name": "mai-code-1.1-flash",
+            "description": "Route to mai-code-1.1-flash (1x standard)."
           }
         ]
       }
@@ -179,6 +183,82 @@
           "required": [
             "path",
             "edits"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_replaceStringInFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Replace String in File",
+        "modelDescription": "Replace exactly ONE occurrence of an exact string in a file. The oldString must match exactly (including whitespace and indentation) and must appear only once in the file. Include 3+ lines of surrounding context in oldString to ensure uniqueness. This is the preferred tool for making targeted edits. Shows a diff preview and requires confirmation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to the file to edit."
+            },
+            "oldString": {
+              "type": "string",
+              "description": "The exact literal text to replace. Must match exactly once in the file. Include surrounding context lines for uniqueness."
+            },
+            "newString": {
+              "type": "string",
+              "description": "The exact literal text to replace oldString with."
+            }
+          },
+          "required": [
+            "path",
+            "oldString",
+            "newString"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_multiReplaceStringInFile",
+        "tags": [
+          "workspace",
+          "file",
+          "write"
+        ],
+        "displayName": "Multi Replace String in File",
+        "modelDescription": "Apply multiple exact-string replacements across one or more files in a single call. Each replacement specifies a file path, oldString, and newString. Each oldString must match exactly once in its file. More efficient than calling replaceStringInFile multiple times. Requires confirmation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "replacements": {
+              "type": "array",
+              "description": "Array of replacement operations to apply sequentially.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Absolute or workspace-relative path to the file to edit."
+                  },
+                  "oldString": {
+                    "type": "string",
+                    "description": "The exact literal text to replace. Must match exactly once in the file."
+                  },
+                  "newString": {
+                    "type": "string",
+                    "description": "The exact literal text to replace oldString with."
+                  }
+                },
+                "required": [
+                  "path",
+                  "oldString",
+                  "newString"
+                ]
+              }
+            }
+          },
+          "required": [
+            "replacements"
           ]
         }
       },
@@ -838,12 +918,534 @@
             "text"
           ]
         }
+      },
+      {
+        "name": "agent-router_grepSearch",
+        "tags": [
+          "workspace",
+          "search"
+        ],
+        "displayName": "Grep Search",
+        "modelDescription": "Fast text or regex search across workspace files. Returns matching lines with file paths and line numbers. Use this for exact string or pattern matching. Supports include glob patterns to narrow the search scope.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text or regex pattern to search for."
+            },
+            "isRegex": {
+              "type": "boolean",
+              "description": "Whether the pattern is a regular expression. Default: false (literal text search)."
+            },
+            "include": {
+              "type": "string",
+              "description": "Optional glob pattern to filter files (e.g. '*.ts', 'src/**/*.py')."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of matches to return. Default: 30."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_sendToTerminal",
+        "tags": [
+          "terminal"
+        ],
+        "displayName": "Send to Terminal",
+        "modelDescription": "Send text input to an active terminal. The text is sent followed by Enter. Use this to interact with running processes (REPLs, prompts, servers) or to type commands into a visible terminal. Optionally target a specific terminal by name.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text to send to the terminal (followed by Enter)."
+            },
+            "terminalName": {
+              "type": "string",
+              "description": "Optional partial name of the target terminal. If omitted, sends to the active terminal."
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_killTerminal",
+        "tags": [
+          "terminal"
+        ],
+        "displayName": "Kill Terminal",
+        "modelDescription": "Kill (dispose) a terminal by name. If no name is given, kills the active terminal. Use to clean up terminals running servers or long-running processes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "terminalName": {
+              "type": "string",
+              "description": "Optional partial name of the terminal to kill. If omitted, kills the active terminal."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_listCodeUsages",
+        "tags": [
+          "workspace",
+          "code"
+        ],
+        "displayName": "Find References",
+        "modelDescription": "Find all usages (references, definitions, implementations) of a code symbol at a specific position in a file. Returns a list of file paths and line numbers where the symbol is referenced. You must provide the file path and the 1-based line and character position of the symbol.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to the file containing the symbol."
+            },
+            "line": {
+              "type": "number",
+              "description": "1-based line number where the symbol appears."
+            },
+            "character": {
+              "type": "number",
+              "description": "1-based character/column number where the symbol appears."
+            }
+          },
+          "required": [
+            "path",
+            "line",
+            "character"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_renameSymbol",
+        "tags": [
+          "workspace",
+          "code"
+        ],
+        "displayName": "Rename Symbol",
+        "modelDescription": "Rename a code symbol across the entire workspace using the language server's rename functionality. This performs a semantics-aware rename that updates all references, imports, and usages. Provide the file, position, and new name.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to a file where the symbol appears."
+            },
+            "line": {
+              "type": "number",
+              "description": "1-based line number where the symbol appears."
+            },
+            "character": {
+              "type": "number",
+              "description": "1-based character/column number where the symbol appears."
+            },
+            "newName": {
+              "type": "string",
+              "description": "The new name for the symbol."
+            }
+          },
+          "required": [
+            "path",
+            "line",
+            "character",
+            "newName"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_runVSCodeCommand",
+        "tags": [
+          "vscode"
+        ],
+        "displayName": "Run VS Code Command",
+        "modelDescription": "Execute any VS Code command by its command ID. This provides access to the full VS Code command palette. Some commands return results. Dangerous commands (quit, reload) are blocked for safety. Common examples: 'editor.action.formatDocument', 'editor.action.organizeImports', 'workbench.action.files.save'.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The VS Code command ID to execute (e.g. 'editor.action.formatDocument')."
+            },
+            "args": {
+              "type": "array",
+              "description": "Optional arguments to pass to the command.",
+              "items": {}
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_viewImage",
+        "tags": [
+          "workspace",
+          "file"
+        ],
+        "displayName": "View Image",
+        "modelDescription": "Open an image file in VS Code's built-in image viewer. Supports PNG, JPG, JPEG, GIF, WebP, SVG, BMP, and ICO formats. Returns the file size. Use this instead of readFile for image files.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path to the image file."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_askUser",
+        "tags": [
+          "interaction"
+        ],
+        "displayName": "Ask User",
+        "modelDescription": "Ask the user one or more clarifying questions before proceeding. Each question can be free text or multiple choice (with options). Use this when the user's intent is ambiguous, when you need a preference, or when confirmation is needed before a potentially destructive action. Returns the user's answers.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "questions": {
+              "type": "array",
+              "description": "List of questions to ask the user.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "description": "The question text to display."
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional list of choices. If provided, shows as a dropdown. If omitted, shows a free text input."
+                  }
+                },
+                "required": [
+                  "question"
+                ]
+              }
+            }
+          },
+          "required": [
+            "questions"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_memory",
+        "tags": [
+          "state"
+        ],
+        "displayName": "Memory",
+        "modelDescription": "Persistent notes system for storing and retrieving information across conversations. Supports two scopes: 'global' (persists across all workspaces) and 'workspace' (scoped to the current project). Actions: 'list' (show all notes), 'read' (get a note by key), 'write' (create/update a note), 'delete' (remove a note). Use this to remember user preferences, project conventions, or task context.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["read", "write", "list", "delete"],
+              "description": "The operation: read, write, list, or delete."
+            },
+            "scope": {
+              "type": "string",
+              "enum": ["global", "workspace"],
+              "description": "Storage scope. 'global' persists across all workspaces, 'workspace' is project-scoped. Default: 'global'."
+            },
+            "key": {
+              "type": "string",
+              "description": "The note key/name. Required for read, write, delete."
+            },
+            "content": {
+              "type": "string",
+              "description": "The note content. Required for write."
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_todoList",
+        "tags": [
+          "state"
+        ],
+        "displayName": "Todo List",
+        "modelDescription": "Manage a task tracking list for multi-step work. Actions: 'get' (view current list), 'set' (replace entire list with new items), 'update' (change a single item's status by id), 'clear' (remove all items). Each item has an id, title, and status (not-started, in-progress, completed). Use this to plan and track progress on complex tasks.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["get", "set", "update", "clear"],
+              "description": "The operation: get, set, update, or clear."
+            },
+            "items": {
+              "type": "array",
+              "description": "Full todo list (for 'set' action). Each item needs id, title, status.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "number", "description": "Unique numeric id." },
+                  "title": { "type": "string", "description": "Short task description." },
+                  "status": { "type": "string", "enum": ["not-started", "in-progress", "completed"] }
+                },
+                "required": ["id", "title", "status"]
+              }
+            },
+            "id": {
+              "type": "number",
+              "description": "Todo item id (for 'update' action)."
+            },
+            "status": {
+              "type": "string",
+              "enum": ["not-started", "in-progress", "completed"],
+              "description": "New status (for 'update' action)."
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_runSubAgent",
+        "tags": [
+          "agent"
+        ],
+        "displayName": "Run Sub-Agent",
+        "modelDescription": "Launch a separate LLM call to handle a subtask autonomously. The sub-agent runs with a fresh context and returns its result. Use this for: researching a question while continuing your main task, delegating a self-contained subtask (e.g. 'summarize this file', 'generate test cases'), or getting a second opinion. The sub-agent does NOT have access to tools — it's a pure text completion. Provide a clear, detailed task description.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "task": {
+              "type": "string",
+              "description": "Detailed description of the subtask for the sub-agent to complete."
+            },
+            "systemPrompt": {
+              "type": "string",
+              "description": "Optional custom system prompt. Default: general helpful assistant."
+            }
+          },
+          "required": [
+            "task"
+          ]
+        }
+      },
+      {
+        "name": "agent-router_terminalLastCommand",
+        "tags": [
+          "terminal"
+        ],
+        "displayName": "Terminal Last Command",
+        "modelDescription": "Get the last executed command from a terminal, including its command line, exit code, and output. Uses VS Code's shell integration API. Optionally specify a terminal by name.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "terminalName": {
+              "type": "string",
+              "description": "Optional partial name of the terminal. If omitted, returns from all terminals."
+            },
+            "count": {
+              "type": "number",
+              "description": "Number of recent commands to return. Default: 1. Max: 20."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "agent-router_createNotebook",
+        "tags": [
+          "notebook",
+          "file"
+        ],
+        "displayName": "Create Jupyter Notebook",
+        "modelDescription": "Create a new Jupyter notebook (.ipynb) file with optional initial cells. Each cell has a language ('python', 'markdown', etc.) and content. The notebook is created and opened in VS Code.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or workspace-relative path for the new .ipynb file."
+            },
+            "cells": {
+              "type": "array",
+              "description": "Optional initial cells. Defaults to one empty Python cell.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "description": "Cell language: 'python', 'markdown', 'javascript', etc."
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Cell source code or markdown content."
+                  }
+                },
+                "required": ["language", "content"]
+              }
+            }
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "name": "agent-router_runNotebookCell",
+        "tags": [
+          "notebook"
+        ],
+        "displayName": "Run Notebook Cell",
+        "modelDescription": "Execute a specific code cell in a Jupyter notebook by its 1-based index. Returns the cell output after execution. Only code cells can be executed (not markdown). Optionally provide a notebook path, or it uses the active notebook.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Optional notebook path. If omitted, uses the active notebook."
+            },
+            "cellIndex": {
+              "type": "number",
+              "description": "1-based cell index to execute."
+            }
+          },
+          "required": ["cellIndex"]
+        }
+      },
+      {
+        "name": "agent-router_readNotebookCellOutput",
+        "tags": [
+          "notebook"
+        ],
+        "displayName": "Read Notebook Cell Output",
+        "modelDescription": "Read the output of a specific notebook cell by its 1-based index. Returns text output, error tracebacks, image descriptions, etc. Use this to check results of previously executed cells without re-running them.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Optional notebook path. If omitted, uses the active notebook."
+            },
+            "cellIndex": {
+              "type": "number",
+              "description": "1-based cell index to read output from."
+            }
+          },
+          "required": ["cellIndex"]
+        }
+      },
+      {
+        "name": "agent-router_editNotebook",
+        "tags": [
+          "notebook"
+        ],
+        "displayName": "Edit Notebook",
+        "modelDescription": "Edit cells in a Jupyter notebook. Supports insert, replace, and delete operations on cells by 1-based index. Each edit specifies an action, cellIndex, and optionally language and content. Edits are applied via VS Code's WorkspaceEdit API (supports undo).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Optional notebook path. If omitted, uses the active notebook."
+            },
+            "edits": {
+              "type": "array",
+              "description": "List of cell edits to apply.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": ["insert", "replace", "delete"],
+                    "description": "insert: add cell at index, replace: swap cell content, delete: remove cell."
+                  },
+                  "cellIndex": {
+                    "type": "number",
+                    "description": "1-based cell position."
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "Cell language (for insert/replace): 'python', 'markdown', etc."
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Cell content (for insert/replace)."
+                  }
+                },
+                "required": ["action", "cellIndex"]
+              }
+            }
+          },
+          "required": ["edits"]
+        }
+      },
+      {
+        "name": "agent-router_getNotebookSummary",
+        "tags": [
+          "notebook"
+        ],
+        "displayName": "Get Notebook Summary",
+        "modelDescription": "Get a summary of a Jupyter notebook including its cells, types, languages, line counts, and whether each cell has output. Use this to understand notebook structure before editing or running cells.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Optional notebook path. If omitted, uses the active notebook."
+            }
+          },
+          "required": []
+        }
       }
     ],
     "commands": [
       {
         "command": "agentRouter.showPremiumStats",
-        "title": "Agent Router: Show Premium Stats",
+        "title": "Show Premium Stats",
+        "category": "Agent Router"
+      },
+      {
+        "command": "agentRouter.exportChatHistory",
+        "title": "Export Copilot Chat: Current Workspace",
+        "category": "Agent Router"
+      },
+      {
+        "command": "agentRouter.exportAllWorkspaces",
+        "title": "Export Copilot Chat: All Workspaces",
+        "category": "Agent Router"
+      },
+      {
+        "command": "agentRouter.bulkExport",
+        "title": "Export Copilot Chat: Backup to .chat-exports (Bulk Export)",
+        "category": "Agent Router"
+      },
+      {
+        "command": "agentRouter.convertChatFile",
+        "title": "Export Copilot Chat: Convert JSON/JSONL File...",
+        "category": "Agent Router"
+      },
+      {
+        "command": "agentRouter.copyTranscriptOut",
+        "title": "Export Chat History to JSON",
+        "category": "Agent Router"
+      },
+      {
+        "command": "agentRouter.importTranscript",
+        "title": "Import Chat History from JSON",
         "category": "Agent Router"
       }
     ],
@@ -855,12 +1457,12 @@
           "default": 90,
           "minimum": 0,
           "maximum": 100,
-          "description": "Complexity score (0-100) threshold. If a prompt scores higher than this, it is considered complex enough for a premium model."
+          "description": "Complexity score (0-100) threshold. If a prompt scores higher than this, it is routed to an advanced (2x+) model. Scores at or below this go to a standard (1x) model."
         },
         "agentRouter.hybridAgentMode": {
           "type": "boolean",
           "default": true,
-          "description": "When using a premium model, automatically switch to a free model for intermediate agent tool calls to save premium request quota."
+          "description": "When using an advanced model, automatically switch to a standard (1x) model for intermediate agent tool calls to save token budget."
         },
         "agentRouter.agentMode": {
           "type": "boolean",
@@ -877,6 +1479,30 @@
           "type": "string",
           "default": "",
           "description": "Base URL for GitHub Enterprise (e.g. https://company.ghe.com). When set, the extension will also attempt to authenticate via the GitHub Enterprise provider. Leave empty to use github.com only."
+        },
+        "agentRouter.routingRules": {
+          "type": "array",
+          "default": [],
+          "description": "Custom routing rules. Each rule is an object with a 'pattern' (regex string to match against the prompt) and 'model' (model name to route to) or 'tier' ('standard' or 'advanced'). Rules are evaluated in order; first match wins.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Regex pattern to match against the prompt text."
+              },
+              "model": {
+                "type": "string",
+                "description": "Model name to route to when pattern matches (e.g. 'claude-sonnet-5.0')."
+              },
+              "tier": {
+                "type": "string",
+                "enum": ["standard", "advanced"],
+                "description": "Tier to route to when pattern matches (ignored if 'model' is set)."
+              }
+            },
+            "required": ["pattern"]
+          }
         }
       }
     }

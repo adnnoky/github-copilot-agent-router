@@ -1,13 +1,16 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import { scorePromptComplexity } from "./scorer";
 import { getRoutingDecision } from "./router";
-import { selectModel, selectModelByName, listAvailableModels, FREE_MODEL_FAMILIES } from "./models";
+import { selectModel, selectModelByName, listAvailableModels, STANDARD_MODEL_FAMILIES, MODEL_COSTS } from "./models";
 import { runAgentLoop } from "./agent";
-import { openDashboard, addSession, updateSessionStatus, AgentSession } from "./dashboard";
+import { openDashboard, addSession, updateSessionStatus, getStoredSessions, upsertThread, computeThreadId, getChatSessionSummaries, exportChatSessionToMarkdown, getAllWorkspaceSessions, exportJsonFileToMarkdown, AgentSession, ChatTurn, ChatThread } from "./dashboard";
 import {
   ReadFileTool,
   WriteFileTool,
   EditFileTool,
+  ReplaceStringInFileTool,
+  MultiReplaceStringInFileTool,
   ListDirectoryTool,
   RunCommandTool,
   SearchFilesTool,
@@ -35,6 +38,24 @@ import {
   OpenTerminalTool,
   ClipboardReadTool,
   ClipboardWriteTool,
+  GrepSearchTool,
+  SendToTerminalTool,
+  KillTerminalTool,
+  ListCodeUsagesTool,
+  RenameSymbolTool,
+  RunVSCodeCommandTool,
+  ViewImageTool,
+  AskUserTool,
+  MemoryTool,
+  TodoListTool,
+  RunSubAgentTool,
+  TerminalLastCommandTool,
+  registerTerminalTracking,
+  CreateNotebookTool,
+  RunNotebookCellTool,
+  ReadNotebookCellOutputTool,
+  EditNotebookTool,
+  GetNotebookSummaryTool,
   registerProposedContentProvider
 } from "./tools";
 
@@ -49,6 +70,127 @@ function getFreeThreshold(): number {
 
 function isAgentModeEnabled(): boolean {
   return vscode.workspace.getConfiguration("agentRouter").get<boolean>("agentMode", true);
+}
+
+// ── Custom Routing Rules ──────────────────────────────────────────────────
+
+interface RoutingRule {
+  pattern: string;
+  model?: string;
+  tier?: "standard" | "advanced";
+}
+
+function getRoutingRules(): RoutingRule[] {
+  return vscode.workspace.getConfiguration("agentRouter").get<RoutingRule[]>("routingRules", []);
+}
+
+/**
+ * Checks custom routing rules against the prompt.
+ * Returns the matched model name or tier, or null if no rule matched.
+ */
+function matchRoutingRule(prompt: string): { model?: string; tier?: "standard" | "advanced" } | null {
+  const rules = getRoutingRules();
+  for (const rule of rules) {
+    try {
+      const regex = new RegExp(rule.pattern, "i");
+      if (regex.test(prompt)) {
+        return { model: rule.model, tier: rule.tier };
+      }
+    } catch {
+      // Skip invalid regex patterns
+    }
+  }
+  return null;
+}
+
+// ── Token Estimation ──────────────────────────────────────────────────────
+
+/**
+ * Estimates token count from text using a simple heuristic:
+ * ~4 characters per token for English text (GPT-style tokenizers).
+ */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+// ── Chat Thread Capture ───────────────────────────────────────────────────
+
+/**
+ * Extracts ChatTurn[] from VS Code chat context history.
+ * Captures turns from ALL participants (not just @router).
+ */
+function extractTurnsFromContext(chatContext: vscode.ChatContext): ChatTurn[] {
+  const turns: ChatTurn[] = [];
+  for (const turn of chatContext.history) {
+    if (turn instanceof vscode.ChatRequestTurn) {
+      turns.push({
+        role: "user",
+        participant: turn.participant ?? undefined,
+        command: turn.command ?? undefined,
+        content: turn.prompt,
+      });
+    } else if (turn instanceof vscode.ChatResponseTurn) {
+      const textParts = turn.response
+        .filter(p => p instanceof vscode.ChatResponseMarkdownPart)
+        .map(p => (p as vscode.ChatResponseMarkdownPart).value.value);
+      turns.push({
+        role: "assistant",
+        participant: turn.participant ?? undefined,
+        content: textParts.join("\n") || "[non-text response]",
+      });
+    }
+  }
+  return turns;
+}
+
+/**
+ * Snapshots the current chat thread — called after each @router request completes.
+ * Includes turns from all participants in the same chat.
+ */
+function captureThread(
+  context: vscode.ExtensionContext,
+  chatContext: vscode.ChatContext,
+  currentPrompt: string,
+  currentResponse: string,
+  session: AgentSession
+) {
+  const turns = extractTurnsFromContext(chatContext);
+  // Append the current turn (not yet in history)
+  turns.push({ role: "user", participant: "agent-router.router", content: currentPrompt });
+  if (currentResponse) {
+    turns.push({ role: "assistant", participant: "agent-router.router", content: currentResponse.slice(0, 3000) });
+  }
+
+  const threadId = computeThreadId(turns);
+
+  // Derive title from first non-export user prompt
+  let title = "Untitled Chat";
+  for (const t of turns) {
+    if (t.role === "user" && t.content.trim() && t.command !== "export") {
+      title = t.content.trim().slice(0, 60);
+      break;
+    }
+  }
+
+  // Collect models used across sessions in this thread
+  const existingThreads = getStoredSessions(context).filter(s => s.threadId === threadId);
+  const modelsSet = new Set<string>(existingThreads.map(s => s.model));
+  modelsSet.add(session.model);
+
+  const thread: ChatThread = {
+    id: threadId,
+    title,
+    turns: turns.map(t => ({ ...t, content: t.content.slice(0, 2000) })), // cap per-turn size
+    models: [...modelsSet],
+    totalTokens: turns.reduce((sum, t) => sum + estimateTokens(t.content), 0),
+    totalCost: existingThreads.reduce((sum, s) => sum + (s.multiplier ?? 1), 0) + (session.multiplier ?? 1),
+    requestCount: existingThreads.length + 1,
+    firstTimestamp: existingThreads.length > 0 ? Math.min(...existingThreads.map(s => s.timestamp)) : session.timestamp,
+    lastTimestamp: session.timestamp,
+  };
+
+  upsertThread(context, thread);
+  return threadId;
 }
 
 // ── Premium Quota Tracker (GitHub Copilot API) ────────────────────────────
@@ -344,16 +486,17 @@ async function resolveReferences(references: readonly vscode.ChatPromptReference
 function buildRoutingSummary(
   score: number,
   threshold: number,
-  tier: "free" | "premium",
+  tier: "standard" | "advanced",
   modelFamily: string,
   reasons: string[],
-  agentMode: boolean
+  agentMode: boolean,
+  multiplier: number
 ): string {
-  const tierEmoji = tier === "free" ? "🟢" : "🔴";
-  const tierLabel = tier === "free" ? "Free" : "Premium";
+  const tierEmoji = tier === "standard" ? "🟢" : "🔴";
+  const tierLabel = tier === "standard" ? "Standard (1x)" : `Advanced (${multiplier}x)`;
   const agentBadge = agentMode ? " _(agent mode — tools enabled)_" : "";
   return [
-    `${tierEmoji} **Routed to ${tierLabel} tier** — model family: \`${modelFamily}\`${agentBadge}`,
+    `${tierEmoji} **Routed to ${tierLabel}** — model: \`${modelFamily}\`${agentBadge}`,
     `📊 Complexity score: **${score}/100** (threshold: ${threshold})`,
     `🔍 Signals: ${reasons.join(", ")}`,
   ].join("\n\n");
@@ -403,7 +546,8 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 | \`@router /help\` | Show this help page |
 | \`@router /explain <prompt>\` | Show routing score breakdown without sending to model |
 | \`@router /boost <prompt>\` | Expand a short prompt into a highly detailed one before sending (makes an extra model call with your prompt and chat history to generate the boosted prompt, then sends it for the final answer) |
-| \`@router /<model> <prompt>\` | Select a model directly from the autocomplete dropdown to pin it. (e.g. \`@router /gpt-4o\`) |
+| \`@router /export\` | Export the current chat session (prompts + responses) to a Markdown file in the workspace |
+| \`@router /<model> <prompt>\` | Select a model directly from the autocomplete dropdown to pin it. (e.g. \`@router /gpt-5-mini\`) |
 
 ## 🎮 Flags
 
@@ -414,7 +558,7 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 **Examples:**
 \`\`\`
 @router scaffold a REST API in src/api/
-@router /claude-sonnet-4.6 refactor my auth module
+@router /claude-sonnet-5.0 refactor my auth module
 @router /explain design a distributed cache system
 @router /boost write a python fast api
 @router /help
@@ -422,9 +566,24 @@ Routes your prompts to the right Copilot model based on complexity, with full ag
 
 ## ⚙️ Routing
 
-Prompts are scored 0–100. Score ≤ **${threshold}** → 🟢 Free tier. Score > **${threshold}** → 🔴 Premium tier.
+Prompts are scored 0–100. Score ≤ **${threshold}** → 🟢 Standard (1x). Score > **${threshold}** → 🔴 Advanced (2x+).
+
+All models consume from the same token budget, but at different multiplier rates. Standard models (1x) are cost-efficient for simple tasks; Advanced models (2x+) are reserved for complex requests.
 
 Change the threshold: **Settings** → \`agentRouter.freeThreshold\`
+
+## 🎯 Custom Routing Rules
+
+Define regex patterns to always route matching prompts to a specific model or tier:
+
+\`\`\`json
+"agentRouter.routingRules": [
+  { "pattern": "terraform|infrastructure", "model": "claude-sonnet-5.0" },
+  { "pattern": "quick fix|typo|rename", "tier": "standard" }
+]
+\`\`\`
+
+Rules are evaluated in order; first match wins.
 
 ## 🔧 Agent Tools
 
@@ -447,7 +606,7 @@ ${modelList}
 
 ---
 
-> **Free model families:** ${FREE_MODEL_FAMILIES.join(", ")}
+> **Standard models (1x):** ${STANDARD_MODEL_FAMILIES.join(", ")}
 `);
 }
 
@@ -469,16 +628,18 @@ async function handleExplainCommand(
   const complexity = scorePromptComplexity(prompt);
   const decision = getRoutingDecision({ score: complexity.score, freeThreshold: threshold });
   const allModels = await listAvailableModels();
-  const tierEmoji = decision.tier === "free" ? "🟢" : "🔴";
+  const tierEmoji = decision.tier === "standard" ? "🟢" : "🔴";
 
   output.appendLine(`[Explain] score=${complexity.score}, threshold=${threshold}, tier=${decision.tier}`);
+
+  const costTable = Object.entries(MODEL_COSTS).map(([m, c]) => `| \`${m}\` | ${c}x |`).join("\n");
 
   stream.markdown(`## 🔀 Routing Analysis\n\n`);
   stream.markdown(`**Prompt:** _${prompt}_\n\n---\n\n`);
   stream.markdown(`### Score Breakdown\n\n| Metric | Value |\n|---|---|\n| Score | **${complexity.score}/100** |\n| Threshold | ${threshold} |\n| Signals | ${complexity.reasons.join(", ")} |\n\n`);
-  stream.markdown(`### Decision\n\n${tierEmoji} **${decision.tier === "free" ? "Free" : "Premium"} tier** — score ${decision.score} ${decision.tier === "free" ? "≤" : ">"} threshold ${threshold}\n\n`);
+  stream.markdown(`### Decision\n\n${tierEmoji} **${decision.tier === "standard" ? "Standard (1x)" : "Advanced (2x+)"}** — score ${decision.score} ${decision.tier === "standard" ? "≤" : ">"} threshold ${threshold}\n\n`);
   stream.markdown(`### Available Models\n\n${allModels.length > 0 ? allModels.map(m => `- \`${m}\``).join("\n") : "_No Copilot models detected_"}\n\n`);
-  stream.markdown(`### Free Model Families\n\n${FREE_MODEL_FAMILIES.join(", ")}\n\n`);
+  stream.markdown(`### Model Cost Multipliers\n\n| Model | Cost |\n|---|---|\n${costTable}\n\n`);
   stream.markdown(`> _Run \`@router <prompt>\` (without \`/explain\`) to get a real response._`);
 }
 
@@ -498,7 +659,7 @@ async function handleBoostCommand(
 
   stream.progress("Boosting prompt...");
 
-  const selection = await selectModel("free");
+  const selection = await selectModel("standard");
   if (!selection) {
     throw new Error("No model available to boost prompt.");
   }
@@ -523,6 +684,92 @@ async function handleBoostCommand(
   return enhancedPrompt;
 }
 
+// ── /export command ───────────────────────────────────────────────────────
+
+async function handleExportCommand(
+  chatContext: vscode.ChatContext,
+  stream: vscode.ChatResponseStream,
+  output: vscode.OutputChannel,
+  context: vscode.ExtensionContext
+): Promise<void> {
+  const lines: string[] = [];
+
+  // Derive chat name from the first user prompt in history
+  let chatTitle = "Untitled Chat";
+  for (const turn of chatContext.history) {
+    if (turn instanceof vscode.ChatRequestTurn && turn.prompt.trim() && turn.command !== "export") {
+      chatTitle = turn.prompt.trim().slice(0, 60).replace(/[^a-zA-Z0-9\s\-]/g, "").trim();
+      break;
+    }
+  }
+
+  lines.push(`# ${chatTitle}\n`);
+  lines.push(`> Exported: ${new Date().toLocaleString()} | By: Agent Router\n\n---\n`);
+
+  // ─── Current Chat Thread (all participants) ───
+  let turnIndex = 0;
+  for (const turn of chatContext.history) {
+    turnIndex++;
+    if (turn instanceof vscode.ChatRequestTurn) {
+      const participant = turn.participant ? `@${turn.participant}` : "";
+      const cmd = turn.command ? ` /${turn.command}` : "";
+      lines.push(`\n### 🧑 User ${participant ? `→ ${participant}` : ""}${cmd}\n`);
+      lines.push(turn.prompt);
+      lines.push("");
+    } else if (turn instanceof vscode.ChatResponseTurn) {
+      const participant = turn.participant ?? "copilot";
+      lines.push(`\n### 🤖 ${participant}\n`);
+      const textParts = turn.response
+        .filter(p => p instanceof vscode.ChatResponseMarkdownPart)
+        .map(p => (p as vscode.ChatResponseMarkdownPart).value.value);
+      if (textParts.length > 0) {
+        lines.push(textParts.join("\n"));
+      } else {
+        lines.push("_[non-text response]_");
+      }
+      lines.push("");
+    }
+  }
+
+  if (turnIndex === 0) {
+    stream.markdown("⚠️ No chat history to export. Have a conversation first (with any participant — `@workspace`, `@router`, default Copilot, etc.), then call `@router /export` in the **same chat thread**.");
+    return;
+  }
+
+  // ─── Session stats footer ───
+  const allSessions = getStoredSessions(context);
+  lines.push(`\n---\n\n<details>\n<summary>📊 Session History (${allSessions.length} tracked @router requests)</summary>\n`);
+  lines.push(`| # | Time | Model | Tier | Cost | Score | Tokens | Status | Prompt |`);
+  lines.push(`|---|---|---|---|---|---|---|---|---|`);
+
+  for (let i = 0; i < Math.min(allSessions.length, 50); i++) {
+    const s = allSessions[i];
+    const date = new Date(s.timestamp).toLocaleString();
+    const prompt = s.prompt.replace(/\|/g, "\\|").replace(/\n/g, " ");
+    const truncated = prompt.length > 80 ? prompt.slice(0, 80) + "…" : prompt;
+    lines.push(`| ${i + 1} | ${date} | ${s.model} | ${s.tier} | ${s.multiplier ?? 1}x | ${s.score} | ~${s.estimatedTokens ?? 0} | ${s.status} | ${truncated} |`);
+  }
+  lines.push(`\n</details>\n`);
+
+  // Write file — use chat title as filename
+  const content = lines.join("\n");
+  const safeTitle = chatTitle.replace(/\s+/g, "-").toLowerCase().slice(0, 40);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
+  const fileName = `${safeTitle}--${timestamp}.md`;
+
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) {
+    stream.markdown("⚠️ No workspace folder open. Cannot save export file.");
+    return;
+  }
+
+  const exportUri = vscode.Uri.joinPath(workspaceFolders[0].uri, ".chat-exports", fileName);
+  await vscode.workspace.fs.writeFile(exportUri, new TextEncoder().encode(content));
+
+  stream.markdown(`✅ **Exported "${chatTitle}"** — ${turnIndex} turns → \`${vscode.workspace.asRelativePath(exportUri)}\`\n\n> 💡 _Tip: To capture messages from \`@workspace\`, \`@github\`, or default Copilot, call \`@router /export\` in the same chat thread where those messages are._`);
+  output.appendLine(`[Export] "${chatTitle}" — ${turnIndex} turns → ${exportUri.fsPath}`);
+}
+
 // ── Main chat participant handler ─────────────────────────────────────────
 
 async function routerHandler(
@@ -544,7 +791,13 @@ async function routerHandler(
     return;
   }
 
-  const KNOWN_MODELS: string[] = ["gpt-4o", "gpt-4.1", "gpt-5-mini", "claude-sonnet-4.6", "gemini-3-pro", "claude-haiku-4.5", "gpt-5.3-codex"];
+  // /export — save chat history to a markdown file
+  if (request.command === "export") {
+    await handleExportCommand(chatContext, stream, output, context);
+    return;
+  }
+
+  const KNOWN_MODELS: string[] = ["gpt-5-mini", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.3-codex", "claude-sonnet-5.0", "claude-opus-5.0", "mai-code-1.1-flash"];
   let rawPrompt = request.prompt.trim();
 
   // Parse model override (either from a primary slash command, a secondary one in the text, or a --model flag)
@@ -553,7 +806,7 @@ async function routerHandler(
   if (request.command && KNOWN_MODELS.includes(request.command)) {
     modelOverride = { modelName: request.command, cleanPrompt: rawPrompt };
   } else {
-    // Check if the prompt starts with a known model slash command (e.g. user typed `/boost /gpt-4o`)
+    // Check if the prompt starts with a known model slash command (e.g. user typed `/boost /gpt-5-mini`)
     const firstWordMatch = rawPrompt.match(/^\/([^ ]+)(?:\s+|$)/);
     if (firstWordMatch && KNOWN_MODELS.includes(firstWordMatch[1])) {
       modelOverride = {
@@ -638,7 +891,7 @@ async function routerHandler(
 
 
   if (!prompt && !attachedContext) {
-    stream.markdown("⚠️ Please enter a prompt. Example: `@router scaffold a new Express API in src/api/`\n\nTip: Use `--model gpt-4o` to pin a specific model.");
+    stream.markdown("⚠️ Please enter a prompt. Example: `@router scaffold a new Express API in src/api/`\n\nTip: Use `--model gpt-5-mini` to pin a specific model.");
     return;
   }
 
@@ -651,7 +904,23 @@ async function routerHandler(
   const threshold = getFreeThreshold();
   const complexity = scorePromptComplexity(prompt || "read file");
   const decision = getRoutingDecision({ score: complexity.score, freeThreshold: threshold });
-  const agentMode = isAgentModeEnabled();
+  const agentModeSetting = isAgentModeEnabled();
+  // Auto-skip agent loop for simple Q&A (low complexity, no file attachments)
+  const agentMode = agentModeSetting && (complexity.score >= 30 || !!attachedContext);
+
+  // 1.5 Check custom routing rules (before model override so explicit --model still wins)
+  if (!modelOverride) {
+    const ruleMatch = matchRoutingRule(prompt || "");
+    if (ruleMatch) {
+      if (ruleMatch.model) {
+        modelOverride = { modelName: ruleMatch.model, cleanPrompt: rawPrompt };
+        output.appendLine(`[Rule] Custom rule matched → model=${ruleMatch.model}`);
+      } else if (ruleMatch.tier) {
+        decision.tier = ruleMatch.tier;
+        output.appendLine(`[Rule] Custom rule matched → tier=${ruleMatch.tier}`);
+      }
+    }
+  }
 
   output.appendLine(`[Route] score=${complexity.score}, threshold=${threshold}, tier=${decision.tier}, agent=${agentMode}, modelOverride=${modelOverride?.modelName ?? "none"}`);
 
@@ -665,7 +934,7 @@ async function routerHandler(
       return;
     }
     output.appendLine(`[Model] pinned=${modelOverride.modelName}, resolved=${selection.model.id}`);
-    stream.markdown(`📌 **Pinned model:** \`${selection.model.family}\` (\`${selection.model.id}\`) _(agent mode — tools enabled)_`);
+    stream.markdown(`📌 **Pinned model:** \`${selection.model.family}\` (\`${selection.model.id}\`) — ${selection.multiplier}x cost _(agent mode — tools enabled)_`);
     stream.markdown("\n\n---\n\n");
   } else {
     selection = await selectModel(decision.tier);
@@ -675,7 +944,7 @@ async function routerHandler(
     }
     output.appendLine(`[Model] family=${selection.family}, tier=${selection.tier}, id=${selection.model.id}`);
     stream.markdown(buildRoutingSummary(
-      complexity.score, threshold, selection.tier, selection.family, complexity.reasons, agentMode
+      complexity.score, threshold, selection.tier, selection.family, complexity.reasons, agentMode, selection.multiplier
     ));
     stream.markdown("\n\n---\n\n");
   }
@@ -684,9 +953,13 @@ async function routerHandler(
 
   // Record agent session
   const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const estimatedTokens = estimateTokens(fullPrompt);
+  const preliminaryTurns = extractTurnsFromContext(chatContext);
+  preliminaryTurns.push({ role: "user", participant: "agent-router.router", content: prompt });
+  const threadId = computeThreadId(preliminaryTurns);
   const session: AgentSession = {
     id: sessionId,
-    prompt: prompt.slice(0, 200),
+    prompt: prompt.slice(0, 500),
     model: selection.model.family,
     tier: selection.tier,
     score: complexity.score,
@@ -694,12 +967,17 @@ async function routerHandler(
     boosted: isBoostRequested,
     timestamp: Date.now(),
     status: "running",
+    estimatedTokens,
+    multiplier: selection.multiplier,
+    threadId,
   };
   addSession(context, session);
 
   try {
+  let responseText = "";
+
   if (agentMode) {
-    const isComplex = decision.tier === "premium";
+    const isComplex = decision.tier === "advanced";
     await runAgentLoop(
       selection.model,
       fullPrompt,
@@ -710,6 +988,7 @@ async function routerHandler(
       output,
       isComplex
     );
+    responseText = "[Agent mode — multi-turn tool loop]";
   } else {
     // Simple single-shot request without tools
     let response: vscode.LanguageModelChatResponse;
@@ -734,20 +1013,23 @@ async function routerHandler(
       for await (const chunk of response.text) {
         if (token.isCancellationRequested) { break; }
         stream.markdown(chunk);
+        responseText += chunk;
       }
     } catch (e) {
       stream.markdown(`\n\n⚠️ _Stream interrupted: ${e instanceof Error ? e.message : String(e)}_`);
     }
   }
 
-  updateSessionStatus(context, sessionId, "completed");
+  updateSessionStatus(context, sessionId, "completed", responseText);
+  // Capture/update the chat thread with full conversation
+  captureThread(context, chatContext, prompt, responseText, session);
   } catch (e) {
     updateSessionStatus(context, sessionId, "error");
     throw e;
   }
 
-  // Refresh the status bar after a premium request so it reflects API-side usage
-  if (selection.tier === "premium") {
+  // Refresh the status bar after an advanced request so it reflects API-side usage
+  if (selection.tier === "advanced") {
     updatePremiumStatusBar(context, true);
   }
 }
@@ -759,12 +1041,15 @@ export function activate(context: vscode.ExtensionContext) {
   output.appendLine("Agent Router v1.9.0 activated. @router participant + 30 tools ready.");
 
   registerProposedContentProvider(context);
+  registerTerminalTracking(context);
 
   // Register all language model tools
   context.subscriptions.push(
     vscode.lm.registerTool("agent-router_readFile", new ReadFileTool()),
     vscode.lm.registerTool("agent-router_writeFile", new WriteFileTool()),
     vscode.lm.registerTool("agent-router_editFile", new EditFileTool()),
+    vscode.lm.registerTool("agent-router_replaceStringInFile", new ReplaceStringInFileTool()),
+    vscode.lm.registerTool("agent-router_multiReplaceStringInFile", new MultiReplaceStringInFileTool()),
     vscode.lm.registerTool("agent-router_listDirectory", new ListDirectoryTool()),
     vscode.lm.registerTool("agent-router_runCommand", new RunCommandTool()),
     vscode.lm.registerTool("agent-router_searchFiles", new SearchFilesTool()),
@@ -792,6 +1077,23 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.lm.registerTool("agent-router_openTerminal", new OpenTerminalTool()),
     vscode.lm.registerTool("agent-router_clipboardRead", new ClipboardReadTool()),
     vscode.lm.registerTool("agent-router_clipboardWrite", new ClipboardWriteTool()),
+    vscode.lm.registerTool("agent-router_grepSearch", new GrepSearchTool()),
+    vscode.lm.registerTool("agent-router_sendToTerminal", new SendToTerminalTool()),
+    vscode.lm.registerTool("agent-router_killTerminal", new KillTerminalTool()),
+    vscode.lm.registerTool("agent-router_listCodeUsages", new ListCodeUsagesTool()),
+    vscode.lm.registerTool("agent-router_renameSymbol", new RenameSymbolTool()),
+    vscode.lm.registerTool("agent-router_runVSCodeCommand", new RunVSCodeCommandTool()),
+    vscode.lm.registerTool("agent-router_viewImage", new ViewImageTool()),
+    vscode.lm.registerTool("agent-router_askUser", new AskUserTool()),
+    vscode.lm.registerTool("agent-router_memory", new MemoryTool(context)),
+    vscode.lm.registerTool("agent-router_todoList", new TodoListTool(context)),
+    vscode.lm.registerTool("agent-router_runSubAgent", new RunSubAgentTool()),
+    vscode.lm.registerTool("agent-router_terminalLastCommand", new TerminalLastCommandTool()),
+    vscode.lm.registerTool("agent-router_createNotebook", new CreateNotebookTool()),
+    vscode.lm.registerTool("agent-router_runNotebookCell", new RunNotebookCellTool()),
+    vscode.lm.registerTool("agent-router_readNotebookCellOutput", new ReadNotebookCellOutputTool()),
+    vscode.lm.registerTool("agent-router_editNotebook", new EditNotebookTool()),
+    vscode.lm.registerTool("agent-router_getNotebookSummary", new GetNotebookSummaryTool()),
   );
 
   // Register chat participant
@@ -808,6 +1110,322 @@ export function activate(context: vscode.ExtensionContext) {
         () => fetchCopilotUsage(context, false),
         () => fetchCopilotUsageFromApi(false)
       );
+    })
+  );
+
+  // ── Export Chat: Current Workspace ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.exportChatHistory", async () => {
+      const sessionSummaries = getChatSessionSummaries(context);
+      if (sessionSummaries.length === 0) {
+        vscode.window.showWarningMessage("No Copilot Chat sessions found for this workspace.");
+        return;
+      }
+
+      const items = sessionSummaries.map(s => {
+        const date = s.creationDate ? new Date(s.creationDate).toLocaleString() : "Unknown date";
+        return {
+          label: s.title.length > 60 ? s.title.slice(0, 60) + "…" : s.title,
+          description: `${s.requestCount} requests`,
+          detail: `Created: ${date}`,
+          summary: s,
+        };
+      });
+
+      const allOption = {
+        label: "$(file-zip) Export All Conversations",
+        description: `${sessionSummaries.length} conversations`,
+        detail: "Export every chat session to a single file",
+        summary: null as any,
+      };
+
+      const picked = await vscode.window.showQuickPick([allOption, ...items], {
+        placeHolder: "Select a chat conversation to export",
+        title: "Export Copilot Chat: Current Workspace",
+        matchOnDescription: true,
+        matchOnDetail: true,
+      });
+      if (!picked) { return; }
+
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        vscode.window.showWarningMessage("No workspace folder open.");
+        return;
+      }
+
+      const exportDir = vscode.Uri.joinPath(workspaceFolders[0].uri, ".chat-exports");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
+
+      if (picked === allOption) {
+        const sections: string[] = [
+          `# All Copilot Chat Conversations\n`,
+          `> Exported: ${new Date().toLocaleString()} | Conversations: ${sessionSummaries.length}\n\n---\n`,
+        ];
+        for (const s of sessionSummaries) {
+          const md = exportChatSessionToMarkdown(s.filePath);
+          if (md) { sections.push(`\n${"-".repeat(80)}\n`); sections.push(md); }
+        }
+        const fileName = `all-conversations--${timestamp}.md`;
+        const exportUri = vscode.Uri.joinPath(exportDir, fileName);
+        await vscode.workspace.fs.writeFile(exportUri, new TextEncoder().encode(sections.join("\n")));
+        const doc = await vscode.workspace.openTextDocument(exportUri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        vscode.window.showInformationMessage(`Exported ${sessionSummaries.length} conversations → ${vscode.workspace.asRelativePath(exportUri)}`);
+      } else {
+        const md = exportChatSessionToMarkdown(picked.summary.filePath);
+        if (!md) { vscode.window.showWarningMessage("Failed to parse chat session file."); return; }
+        const safeTitle = picked.summary.title.replace(/[^a-zA-Z0-9\s\-]/g, "").replace(/\s+/g, "-").toLowerCase().slice(0, 40);
+        const fileName = `${safeTitle}--${timestamp}.md`;
+        const exportUri = vscode.Uri.joinPath(exportDir, fileName);
+        await vscode.workspace.fs.writeFile(exportUri, new TextEncoder().encode(md));
+        const doc = await vscode.workspace.openTextDocument(exportUri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        vscode.window.showInformationMessage(`Exported "${picked.summary.title}" → ${vscode.workspace.asRelativePath(exportUri)}`);
+      }
+    })
+  );
+
+  // ── Export Chat: All Workspaces ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.exportAllWorkspaces", async () => {
+      const allSessions = getAllWorkspaceSessions();
+      if (allSessions.length === 0) {
+        vscode.window.showWarningMessage("No Copilot Chat sessions found across any workspace.");
+        return;
+      }
+
+      // Group by workspace
+      const byWorkspace = new Map<string, typeof allSessions>();
+      for (const s of allSessions) {
+        const key = s.workspaceName || "Unknown";
+        if (!byWorkspace.has(key)) { byWorkspace.set(key, []); }
+        byWorkspace.get(key)!.push(s);
+      }
+
+      const items: (vscode.QuickPickItem & { summary?: typeof allSessions[0] })[] = [];
+      items.push({
+        label: "$(file-zip) Export All",
+        description: `${allSessions.length} sessions across ${byWorkspace.size} workspaces`,
+        detail: "Export every session from all workspaces to a single file",
+      });
+
+      for (const [wsName, sessions] of byWorkspace) {
+        items.push({ label: "", description: "", detail: "", kind: vscode.QuickPickItemKind.Separator } as any);
+        for (const s of sessions) {
+          const date = s.creationDate ? new Date(s.creationDate).toLocaleString() : "Unknown";
+          items.push({
+            label: s.title.length > 60 ? s.title.slice(0, 60) + "…" : s.title,
+            description: `${s.requestCount} requests | ${wsName}`,
+            detail: `Created: ${date}`,
+            summary: s,
+          });
+        }
+      }
+
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: `Found ${allSessions.length} sessions across ${byWorkspace.size} workspaces`,
+        title: "Export Copilot Chat: All Workspaces",
+        matchOnDescription: true,
+        matchOnDetail: true,
+      });
+      if (!picked) { return; }
+
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        vscode.window.showWarningMessage("No workspace folder open.");
+        return;
+      }
+
+      const exportDir = vscode.Uri.joinPath(workspaceFolders[0].uri, ".chat-exports");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
+
+      if (!("summary" in picked) || !picked.summary) {
+        // Export all
+        const sections: string[] = [
+          `# All Copilot Chat Sessions (All Workspaces)\n`,
+          `> Exported: ${new Date().toLocaleString()} | ${allSessions.length} sessions across ${byWorkspace.size} workspaces\n\n---\n`,
+        ];
+        for (const [wsName, sessions] of byWorkspace) {
+          sections.push(`\n## Workspace: ${wsName}\n`);
+          for (const s of sessions) {
+            const md = exportChatSessionToMarkdown(s.filePath);
+            if (md) { sections.push(`\n${"-".repeat(60)}\n`); sections.push(md); }
+          }
+        }
+        const fileName = `all-workspaces--${timestamp}.md`;
+        const exportUri = vscode.Uri.joinPath(exportDir, fileName);
+        await vscode.workspace.fs.writeFile(exportUri, new TextEncoder().encode(sections.join("\n")));
+        const doc = await vscode.workspace.openTextDocument(exportUri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        vscode.window.showInformationMessage(`Exported ${allSessions.length} sessions from ${byWorkspace.size} workspaces → ${vscode.workspace.asRelativePath(exportUri)}`);
+      } else {
+        const md = exportChatSessionToMarkdown(picked.summary.filePath);
+        if (!md) { vscode.window.showWarningMessage("Failed to parse chat session."); return; }
+        const safeTitle = picked.summary.title.replace(/[^a-zA-Z0-9\s\-]/g, "").replace(/\s+/g, "-").toLowerCase().slice(0, 40);
+        const fileName = `${safeTitle}--${timestamp}.md`;
+        const exportUri = vscode.Uri.joinPath(exportDir, fileName);
+        await vscode.workspace.fs.writeFile(exportUri, new TextEncoder().encode(md));
+        const doc = await vscode.workspace.openTextDocument(exportUri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        vscode.window.showInformationMessage(`Exported "${picked.summary.title}" → ${vscode.workspace.asRelativePath(exportUri)}`);
+      }
+    })
+  );
+
+  // ── Export Chat: Bulk Backup to .chat-exports ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.bulkExport", async () => {
+      const sessionSummaries = getChatSessionSummaries(context);
+      if (sessionSummaries.length === 0) {
+        vscode.window.showWarningMessage("No Copilot Chat sessions found for this workspace.");
+        return;
+      }
+
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        vscode.window.showWarningMessage("No workspace folder open.");
+        return;
+      }
+
+      const exportDir = vscode.Uri.joinPath(workspaceFolders[0].uri, ".chat-exports", "history");
+      let exported = 0;
+
+      await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Exporting chat sessions...",
+        cancellable: false,
+      }, async (progress) => {
+        for (let i = 0; i < sessionSummaries.length; i++) {
+          const s = sessionSummaries[i];
+          progress.report({ message: `${i + 1}/${sessionSummaries.length}: ${s.title.slice(0, 40)}`, increment: 100 / sessionSummaries.length });
+
+          const md = exportChatSessionToMarkdown(s.filePath);
+          if (!md) { continue; }
+
+          const date = s.creationDate ? new Date(s.creationDate).toISOString().split("T")[0] : "unknown";
+          const safeTitle = s.title.replace(/[^a-zA-Z0-9\s\-]/g, "").replace(/\s+/g, "-").toLowerCase().slice(0, 40);
+          const fileName = `${date}--${safeTitle}--${s.sessionId.slice(0, 8)}.md`;
+          const fileUri = vscode.Uri.joinPath(exportDir, fileName);
+
+          await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(md));
+          exported++;
+        }
+      });
+
+      output.appendLine(`[BulkExport] Exported ${exported} sessions to .chat-exports/history/`);
+      const action = await vscode.window.showInformationMessage(
+        `Bulk export complete: ${exported} chat sessions saved to .chat-exports/history/`,
+        "Open Folder"
+      );
+      if (action === "Open Folder") {
+        vscode.commands.executeCommand("revealInExplorer", exportDir);
+      }
+    })
+  );
+
+  // ── Convert JSON/JSONL File to Markdown ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.convertChatFile", async () => {
+      const files = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        openLabel: "Convert",
+        title: "Select a Copilot Chat JSON or JSONL file",
+        filters: { "Chat Files": ["json", "jsonl"], "All Files": ["*"] },
+      });
+      if (!files || files.length === 0) { return; }
+
+      const filePath = files[0].fsPath;
+      const md = exportJsonFileToMarkdown(filePath);
+
+      if (!md) {
+        vscode.window.showWarningMessage("Could not parse the selected file. Make sure it's a Copilot Chat JSON or JSONL file.");
+        return;
+      }
+
+      // Open as untitled markdown document
+      const doc = await vscode.workspace.openTextDocument({ content: md, language: "markdown" });
+      await vscode.window.showTextDocument(doc, { preview: false });
+      vscode.window.showInformationMessage(`Converted "${path.basename(filePath)}" to Markdown. Save with Ctrl+S.`);
+    })
+  );
+
+  // ── Export current chat session as portable JSON (for transfer) ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.copyTranscriptOut", async () => {
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        vscode.window.showWarningMessage("No workspace folder open.");
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
+      const defaultUri = vscode.Uri.joinPath(workspaceFolders[0].uri, `.chat-exports`, `chat-export-${timestamp}.json`);
+
+      const outputUri = await vscode.window.showSaveDialog({
+        defaultUri,
+        filters: { "JSON Files": ["json"] },
+        title: "Export Chat History to JSON",
+      });
+      if (!outputUri) { return; }
+
+      try {
+        // Ensure parent directory exists
+        const parentUri = vscode.Uri.joinPath(outputUri, "..");
+        try { await vscode.workspace.fs.createDirectory(parentUri); } catch { /* may already exist */ }
+
+        // Use VS Code's built-in chat export command
+        await vscode.commands.executeCommand("workbench.action.chat.export", outputUri);
+
+        // Verify the file was created
+        try {
+          await vscode.workspace.fs.stat(outputUri);
+          const relativePath = vscode.workspace.asRelativePath(outputUri);
+          output.appendLine(`[ExportChat] Exported to: ${outputUri.fsPath}`);
+          vscode.window.showInformationMessage(
+            `Chat exported to: ${relativePath}. Import it in another workspace with "Agent Router: Import Chat History from JSON".`
+          );
+        } catch {
+          vscode.window.showWarningMessage("Export command completed but no file was created. Make sure you have an active chat session open.");
+        }
+      } catch (e) {
+        output.appendLine(`[ExportChat] Failed: ${e}`);
+        vscode.window.showErrorMessage(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    })
+  );
+
+  // ── Import chat session JSON into current workspace ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("agentRouter.importTranscript", async () => {
+      const files = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        openLabel: "Import",
+        title: "Import Chat History from JSON",
+        filters: { "JSON Files": ["json"], "All Files": ["*"] },
+      });
+      if (!files || files.length === 0) { return; }
+
+      const inputUri = files[0];
+      output.appendLine(`[ImportChat] Importing: ${inputUri.fsPath}`);
+
+      try {
+        // Verify the file exists and is readable
+        await vscode.workspace.fs.stat(inputUri);
+
+        // Use VS Code's built-in chat import command — opens in a new chat tab
+        await vscode.commands.executeCommand("workbench.action.chat.import", { inputPath: inputUri });
+
+        const relativePath = vscode.workspace.asRelativePath(inputUri);
+        output.appendLine(`[ImportChat] Import complete: ${relativePath}`);
+        vscode.window.showInformationMessage(`Chat session restored from: ${relativePath}`);
+      } catch (e) {
+        output.appendLine(`[ImportChat] Failed: ${e}`);
+        vscode.window.showErrorMessage(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
     })
   );
 

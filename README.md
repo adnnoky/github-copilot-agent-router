@@ -1,6 +1,6 @@
 # Agent Router — `@router`
 
-> **Routes GitHub Copilot Chat prompts to free or premium models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
+> **Routes GitHub Copilot Chat prompts to standard (1x) or advanced (2x+) models based on complexity — with full agentic file-edit, terminal, and workspace capabilities.**
 
 [![Version](https://img.shields.io/github/v/release/adnnoky/github-copilot-agent-router?label=version)](https://github.com/adnnoky/github-copilot-agent-router/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -12,7 +12,7 @@
 
 ## What It Does
 
-Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat participant. It scores the complexity of your prompt (0–100) and automatically routes it to the most appropriate Copilot model — so you use powerful premium models only when they're actually needed.
+Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat participant. It scores the complexity of your prompt (0–100) and automatically routes it to the most cost-efficient Copilot model — using powerful advanced models only when they're actually needed.
 
 ```
 @router <your prompt>
@@ -21,8 +21,8 @@ Agent Router integrates with **GitHub Copilot Chat** as a native `@router` chat 
   Complexity Score (0–100)
   via keyword heuristics
       │
-      ├─ Score ≤ threshold → 🟢 Free model      (gpt-5-mini, gpt-4o, gpt-4.1)
-      └─ Score >  threshold → 🔴 Premium model  (claude-sonnet-4.6, gemini-3-pro, gpt-5.3-codex…)
+      ├─ Score ≤ threshold → 🟢 Standard (1x)   (gpt-5-mini, gpt-5.6-luna, mai-code-1.1-flash)
+      └─ Score >  threshold → 🔴 Advanced (2x+)  (claude-sonnet-5.0, gpt-5.6-terra, gpt-5.3-codex, claude-opus-5.0)
       │
       ▼
   Full agentic loop with 30 tools (file edits, terminal, search, git…)
@@ -67,23 +67,36 @@ Open **Copilot Chat** (`Ctrl+Alt+I` / `⌘⌥I`) and type:
 | `@router /help` or `@router /?` | Show the full help page |
 | `@router /explain <prompt>` | Show routing decision (score, tier, model) — no LLM call |
 | `@router /boost <prompt>` | Expand a short prompt into a detailed one using chat history for context |
-| `@router /<model> <prompt>` | Pin a specific model via the autocomplete dropdown, bypassing auto-routing. (e.g., `@router /gpt-4o`) |
+| `@router /export` | Export the current chat thread to a Markdown file |
+| `@router /<model> <prompt>` | Pin a specific model via the autocomplete dropdown, bypassing auto-routing. (e.g., `@router /claude-sonnet-5.0`) |
 | `@router --model <name> <prompt>` | Pin a specific model manually, bypassing auto-routing |
+
+### Command Palette Commands
+
+| Command | Description |
+|---|---|
+| `Agent Router: Show Premium Stats` | Open the Copilot Insights Dashboard |
+| `Agent Router: Export Copilot Chat: Current Workspace` | Pick a chat from the current workspace and export to Markdown |
+| `Agent Router: Export Copilot Chat: All Workspaces` | Scan all VS Code workspaces on your machine, pick any chat to export |
+| `Agent Router: Export Copilot Chat: Backup to .chat-exports` | Bulk export all workspace chats to `.chat-exports/history/` (one file per session) |
+| `Agent Router: Export Copilot Chat: Convert JSON/JSONL File...` | Convert any exported `.json` or `.jsonl` chat file to Markdown |
+| `Agent Router: Export Chat History to JSON` | Export the active chat session as a portable JSON file (for transfer) |
+| `Agent Router: Import Chat History from JSON` | Import a JSON chat file and restore it as a live chat tab |
 
 ### Examples
 
 ```
 @router how do I reverse a string in Python?
-→ 🟢 Free tier (gpt-4o) — low complexity
+→ 🟢 Standard tier (gpt-5-mini) — 1x cost, low complexity
 
 @router design a distributed OAuth2 auth system with Kubernetes and Redis caching
-→ 🔴 Premium tier (claude-3.5-sonnet) — high complexity
+→ 🔴 Advanced tier (claude-sonnet-5.0) — 2x cost, high complexity
 
-@router /claude-sonnet-4.6 refactor my auth module
-→ 📌 Pinned model (claude-sonnet-4.6)
+@router /claude-sonnet-5.0 refactor my auth module
+→ 📌 Pinned model (claude-sonnet-5.0)
 
-@router /claude-sonnet-4.6 /boost implement missing methods
-→ 📌 Pinned model (claude-sonnet-4.6), expands prompt with history, then generates answer
+@router /claude-sonnet-5.0 /boost implement missing methods
+→ 📌 Pinned model (claude-sonnet-5.0), expands prompt with history, then generates answer
 
 @router /explain refactor my authentication module for microservices
 → Shows score breakdown without making any model call
@@ -109,9 +122,51 @@ Starting with v1.8.0, **all** model requests — routing, agentic tool loops, si
 Agent Router makes a best-effort attempt to track your **Premium Request limits** using an internal/undocumented GitHub Copilot endpoint. This is **not** an official, supported public API, so it may change, become unavailable, or be inaccessible for some accounts without notice.
 
 - **Status Bar Indicator**: View your remaining premium request count and dynamic capacity percentage conveniently in the VS Code status bar when quota data is available.
-- **Copilot Usage Dashboard**: Click the status bar or run `Agent Router: Show Premium Stats` to open the interactive dashboard for detailed metrics, historical session logs, and exact quota reset timelines when available.
+- **Copilot Insights Dashboard**: Click the status bar or run `Agent Router: Show Premium Stats` to open the interactive dashboard with:
+  - Usage gauge and quota breakdown
+  - Per-model usage distribution with bar charts
+  - **Chat Conversations** — all workspace conversations (both `@router` and regular Copilot Chat) in a single view, clickable to see the full conversation thread
+  - Individual request log with status, model, tier, score, estimated tokens, and cost multiplier
+  - Active session monitoring
+  - Workspace Copilot configuration overview (instructions, prompts, agents, skills, hooks)
 - **Expected failure modes**: Depending on your account, Copilot plan, authentication state, token scopes, GitHub backend changes, rate limits, or response-format changes, premium-usage data may be missing, partial, stale, or fail to load entirely.
 - **Fallback behavior**: If quota data cannot be retrieved, Agent Router will continue to route prompts and provide chat/agent functionality as normal; only the premium-usage indicator/dashboard may be degraded or unavailable.
+
+---
+
+## Chat History & Export 📜
+
+Agent Router reads VS Code's internal Copilot Chat session files (`chatSessions/`) to give you visibility into **all** workspace conversations — not just `@router` sessions. It correctly parses the JSONL patch format including custom titles, appended requests, and streamed responses.
+
+### Viewing Conversations
+
+The **Copilot Insights Dashboard** (`Agent Router: Show Premium Stats`) shows a **Chat Conversations** table listing every conversation in the workspace. Each row shows:
+- **Source** badge: `Copilot Chat` (purple) or `@router` (blue)
+- Title, models used, turn count, estimated tokens, cost
+- Click any row to open the full conversation in a chat-style detail panel
+
+### Exporting to Markdown
+
+| Command | What it does |
+|---|---|
+| `@router /export` | Export the current chat thread to `.chat-exports/` |
+| **Export Copilot Chat: Current Workspace** | Pick any chat from the open project and export to Markdown |
+| **Export Copilot Chat: All Workspaces** | Scan every VS Code workspace on your machine — groups chats by project |
+| **Export Copilot Chat: Backup to .chat-exports** | Bulk export all workspace chats (one `.md` per session) with progress bar |
+| **Export Copilot Chat: Convert JSON/JSONL File...** | Open any exported chat file and convert to readable Markdown |
+
+### Transferring Chats Between Workspaces (JSON)
+
+Move live conversations between VS Code instances (e.g., Windows ↔ WSL, or between machines):
+
+1. **Source workspace** — Run **Export Chat History to JSON**
+   - Make sure the chat you want to export is the active chat tab
+   - Save the `.json` file to a shared location
+2. **Target workspace** — Run **Import Chat History from JSON**
+   - Select the `.json` file
+   - The chat opens as a **new live tab** in Copilot Chat — fully functional, continue the conversation
+
+This uses VS Code's built-in `workbench.action.chat.export` / `workbench.action.chat.import` commands, so imported chats appear natively in the Chat sidebar — no window reload needed.
 
 ---
 
@@ -119,23 +174,51 @@ Agent Router makes a best-effort attempt to track your **Premium Request limits*
 
 | Setting | Type | Default | Description |
 |---|---|---|---|
-| `agentRouter.freeThreshold` | `number` | `90` | Complexity score threshold (0-100). Scores ≤ this go to a free model. |
+| `agentRouter.freeThreshold` | `number` | `90` | Complexity score threshold (0-100). Scores ≤ this go to a standard (1x) model. |
 | `agentRouter.agentMode` | `boolean` | `true` | Enable/disable agentic tool access (file editing, terminal, etc). |
-| `agentRouter.hybridAgentMode` | `boolean` | `true` | When using a premium model, automatically switch to a free model for intermediate agent tool calls to save premium request quota. |
-| `agentRouter.allowGitCommands` | `boolean` | `false` | (Beta) Allow the agent to automatically commit and push changes. |
+| `agentRouter.hybridAgentMode` | `boolean` | `true` | When using an advanced model, automatically switch to a standard (1x) model for intermediate agent tool calls to save token budget. |
 | `agentRouter.githubEnterpriseUrl` | `string` | `""` | Base URL for GitHub Enterprise (e.g. `https://company.ghe.com`). Enables authentication via the enterprise provider alongside github.com. |
+| `agentRouter.usageRefreshInterval` | `number` | `60` | How often (in seconds) to refresh premium request usage data. |
+| `agentRouter.routingRules` | `array` | `[]` | Custom routing rules. Each rule has a `pattern` (regex), and `model` or `tier` to route to. First match wins. |
 
 Open **Settings** (`Ctrl+,`) and search `agentRouter` to adjust.
 
-## 🛠️ How it matches models
+## 🛠️ Cost Multipliers & Model Tiers
 
-### Free Model Families
+Models are categorized by cost multiplier — how many premium requests each call consumes.
 
-`gpt-4o`, `gpt-5-mini`, `gpt-4.1`
+### Standard Models (1x cost)
 
-### Premium Model Families
+| Model | Multiplier |
+|---|---|
+| `gpt-5-mini` | 1x |
+| `gpt-5.6-luna` | 1x |
+| `mai-code-1.1-flash` | 1x |
 
-All other available Copilot models (e.g. `claude-sonnet-4.6`, `gemini-3-pro`, `gpt-5.3-codex`) are treated as **premium**.
+### Advanced Models (2x+ cost)
+
+| Model | Multiplier |
+|---|---|
+| `claude-sonnet-5.0` | 2x |
+| `gpt-5.6-terra` | 2x |
+| `gpt-5.3-codex` | 3x |
+| `claude-opus-5.0` | 3x |
+
+Models not in this table default to 2x. The preferred advanced model is `claude-sonnet-5.0`.
+
+### Custom Routing Rules
+
+Override automatic routing for specific prompts via `agentRouter.routingRules` in settings:
+
+```json
+"agentRouter.routingRules": [
+  { "pattern": "security|CVE|vulnerability", "tier": "advanced" },
+  { "pattern": "translate|simple question", "tier": "standard" },
+  { "pattern": "codex", "model": "gpt-5.3-codex" }
+]
+```
+
+Rules are evaluated in order. First regex match wins. If no rule matches, normal complexity scoring applies.
 
 ---
 
@@ -198,7 +281,7 @@ npm run watch     # watch mode
 # Package for distribution
 npx vsce package
 # Install locally
-code --install-extension agent-router-extension-1.9.3.vsix
+code --install-extension agent-router-extension-1.11.0.vsix
 ```
 
 ---

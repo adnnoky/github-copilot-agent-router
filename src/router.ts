@@ -19,12 +19,12 @@ function normalizeThreshold(value: number): number {
 }
 
 /**
- * Determines whether the prompt should be routed to a free or premium model.
- * Score <= threshold → free; score > threshold → premium.
+ * Determines whether the prompt should be routed to a standard (1x) or advanced (2x+) model.
+ * Score <= threshold → standard; score > threshold → advanced.
  */
 export function getRoutingDecision(input: RouterInput): RoutingDecision {
   const threshold = normalizeThreshold(input.freeThreshold);
-  const tier: ModelTier = input.score <= threshold ? "free" : "premium";
+  const tier: ModelTier = input.score <= threshold ? "standard" : "advanced";
 
   return {
     tier,
